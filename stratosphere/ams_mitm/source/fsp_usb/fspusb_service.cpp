@@ -23,10 +23,13 @@ namespace ams::mitm::fspusb {
         impl::DoUpdateDrives();
         R_UNLESS(impl::IsDriveInterfaceIdValid(drive_interface_id), ResultInvalidDriveInterfaceId());
 
+        u8 fs_type;
         impl::DoWithDriveFATFS(drive_interface_id, [&](FATFS *fs) {
-            out_fs_type.SetValue(fs->fs_type);
-            FSP_USB_LOG("%s (interface ID %d): set filesystem type to 0x%02X.", __func__, drive_interface_id, fs->fs_type);
+            fs_type = fs->fs_type;
         });
+
+        out_fs_type.SetValue(fs_type);
+        FSP_USB_LOG("%s (interface ID %d): set filesystem type to 0x%02X.", __func__, drive_interface_id, fs_type);
 
         return ResultSuccess();
     }

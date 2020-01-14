@@ -116,7 +116,7 @@ extern "C" DRESULT disk_ioctl (
 {
     switch(cmd) {
         case GET_SECTOR_SIZE: {
-			fspusb::impl::DoWithDriveMountedIndex((u32)pdrv, [&](fspusb::impl::DrivePointer &drive_ptr) {
+            fspusb::impl::DoWithDriveMountedIndex((u32)pdrv, [&](fspusb::impl::DrivePointer &drive_ptr) {
                 *(WORD*)buff = (WORD)drive_ptr->GetBlockSize();
             });
             break;
