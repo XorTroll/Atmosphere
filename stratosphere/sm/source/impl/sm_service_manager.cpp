@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -161,11 +161,11 @@ namespace ams::sm::impl {
                     cfg::GetInitialProcessRange(&this->min, &this->max);
 
                     /* Ensure range is sane. */
-                    AMS_ASSERT(this->min <= this->max);
+                    AMS_ABORT_UNLESS(this->min <= this->max);
                 }
 
                 bool IsInitialProcess(os::ProcessId process_id) const {
-                    AMS_ASSERT(process_id != os::InvalidProcessId);
+                    AMS_ABORT_UNLESS(process_id != os::InvalidProcessId);
                     return this->min <= process_id && process_id <= this->max;
                 }
         };
@@ -228,7 +228,7 @@ namespace ams::sm::impl {
         void GetMitmProcessInfo(MitmProcessInfo *out_info, os::ProcessId process_id) {
             /* Anything that can request a mitm session must have a process info. */
             const auto process_info = GetProcessInfo(process_id);
-            AMS_ASSERT(process_info != nullptr);
+            AMS_ABORT_UNLESS(process_info != nullptr);
 
             /* Write to output. */
             out_info->process_id = process_id;
@@ -239,10 +239,13 @@ namespace ams::sm::impl {
         bool IsMitmDisallowed(ncm::ProgramId program_id) {
             /* Mitm used on certain programs can prevent the boot process from completing. */
             /* TODO: Is there a way to do this that's less hardcoded? Needs design thought. */
-            return program_id == ncm::ProgramId::Loader ||
-                   program_id == ncm::ProgramId::Boot ||
-                   program_id == ncm::ProgramId::AtmosphereMitm ||
-                   program_id == ncm::ProgramId::Creport;
+            return program_id == ncm::SystemProgramId::Loader   ||
+                   program_id == ncm::SystemProgramId::Pm       ||
+                   program_id == ncm::SystemProgramId::Spl      ||
+                   program_id == ncm::SystemProgramId::Boot     ||
+                   program_id == ncm::SystemProgramId::Ncm      ||
+                   program_id == ncm::AtmosphereProgramId::Mitm ||
+                   program_id == ncm::SystemProgramId::Creport;
         }
 
         Result AddFutureMitmDeclaration(ServiceName service) {
@@ -297,7 +300,7 @@ namespace ams::sm::impl {
                         is_valid &= std::memcmp(&ac_service, &service, access_control.GetServiceNameSize() - 1) == 0;
                     }
 
-                    R_UNLESS(!is_valid, ResultSuccess());
+                    R_SUCCEED_IF(is_valid);
                 }
                 access_control = access_control.GetNextEntry();
             }
@@ -383,7 +386,7 @@ namespace ams::sm::impl {
                 GetMitmProcessInfo(&client_info, process_id);
                 if (!IsMitmDisallowed(client_info.program_id)) {
                     /* We're mitm'd. Assert, because mitm service host dead is an error state. */
-                    R_ASSERT(GetMitmServiceHandleImpl(out, service_info, client_info));
+                    R_ABORT_UNLESS(GetMitmServiceHandleImpl(out, service_info, client_info));
                     return ResultSuccess();
                 }
             }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -14,8 +14,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #pragma once
-#include "../os.hpp"
-#include "kvdb_bounded_string.hpp"
+#include <stratosphere/os.hpp>
+#include <stratosphere/fs/fs_directory.hpp>
+#include <stratosphere/kvdb/kvdb_bounded_string.hpp>
 
 namespace ams::kvdb {
 
@@ -23,12 +24,11 @@ namespace ams::kvdb {
         NON_COPYABLE(FileKeyValueStore);
         NON_MOVEABLE(FileKeyValueStore);
         public:
-            static constexpr size_t MaxPathLength = 0x300; /* TODO: FS_MAX_PATH - 1? */
             static constexpr size_t MaxFileLength = 0xFF;
             static constexpr char FileExtension[5] = ".val";
             static constexpr size_t FileExtensionLength = sizeof(FileExtension) - 1;
             static constexpr size_t MaxKeySize = (MaxFileLength - FileExtensionLength) / 2;
-            using Path = kvdb::BoundedString<MaxPathLength>;
+            using Path = kvdb::BoundedString<fs::EntryNameLengthMax>;
             using FileName = kvdb::BoundedString<MaxFileLength>;
         private:
             /* Subtypes. */
@@ -92,7 +92,7 @@ namespace ams::kvdb {
                 static_assert(std::is_pod<Value>::value && !std::is_pointer<Value>::value, "Invalid FileKeyValueStore Value!");
                 size_t size = 0;
                 R_TRY(this->Get(&size, out_value, sizeof(Value), key));
-                AMS_ASSERT(size >= sizeof(Value));
+                AMS_ABORT_UNLESS(size >= sizeof(Value));
                 return ResultSuccess();
             }
 

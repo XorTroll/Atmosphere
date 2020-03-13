@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -16,8 +16,9 @@
 
 #pragma once
 #include <vapours.hpp>
-#include "../ncm/ncm_types.hpp"
-#include "../sf/sf_buffer_tags.hpp"
+#include <stratosphere/ncm/ncm_ids.hpp>
+#include <stratosphere/ncm/ncm_program_location.hpp>
+#include <stratosphere/sf/sf_buffer_tags.hpp>
 
 namespace ams::ldr {
 

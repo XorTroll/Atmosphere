@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -26,11 +26,11 @@ namespace ams::ldr {
 
     /* Launch Record API. */
     bool HasLaunchedProgram(ncm::ProgramId program_id) {
-        return g_launched_programs.find(static_cast<u64>(program_id)) != g_launched_programs.end();
+        return g_launched_programs.find(program_id.value) != g_launched_programs.end();
     }
 
     void SetLaunchedProgram(ncm::ProgramId program_id) {
-        g_launched_programs.insert(static_cast<u64>(program_id));
+        g_launched_programs.insert(program_id.value);
     }
 
 }

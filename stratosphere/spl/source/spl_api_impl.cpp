@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -88,10 +88,10 @@ namespace ams::spl::impl {
                 u32 perm;
             public:
                 DeviceAddressSpaceMapHelper(Handle h, u64 dst, u64 src, size_t sz, u32 p) : das_hnd(h), dst_addr(dst), src_addr(src), size(sz), perm(p) {
-                    R_ASSERT(svcMapDeviceAddressSpaceAligned(this->das_hnd, dd::GetCurrentProcessHandle(), this->src_addr, this->size, this->dst_addr, this->perm));
+                    R_ABORT_UNLESS(svcMapDeviceAddressSpaceAligned(this->das_hnd, dd::GetCurrentProcessHandle(), this->src_addr, this->size, this->dst_addr, this->perm));
                 }
                 ~DeviceAddressSpaceMapHelper() {
-                    R_ASSERT(svcUnmapDeviceAddressSpace(this->das_hnd, dd::GetCurrentProcessHandle(), this->src_addr, this->size, this->dst_addr));
+                    R_ABORT_UNLESS(svcUnmapDeviceAddressSpace(this->das_hnd, dd::GetCurrentProcessHandle(), this->src_addr, this->size, this->dst_addr));
                 }
         };
 
@@ -122,108 +122,33 @@ namespace ams::spl::impl {
         /* Initialization functionality. */
         void InitializeCtrDrbg() {
             u8 seed[CtrDrbg::SeedSize];
-            AMS_ASSERT(smc::GenerateRandomBytes(seed, sizeof(seed)) == smc::Result::Success);
+            AMS_ABORT_UNLESS(smc::GenerateRandomBytes(seed, sizeof(seed)) == smc::Result::Success);
 
             g_drbg.Initialize(seed);
         }
 
         void InitializeSeEvents() {
             u64 irq_num;
-            AMS_ASSERT(smc::GetConfig(&irq_num, 1, SplConfigItem_SecurityEngineIrqNumber) == smc::Result::Success);
-            R_ASSERT(g_se_event.Initialize(irq_num));
+            AMS_ABORT_UNLESS(smc::GetConfig(&irq_num, 1, SplConfigItem_SecurityEngineIrqNumber) == smc::Result::Success);
+            R_ABORT_UNLESS(g_se_event.Initialize(irq_num));
 
-            R_ASSERT(g_se_keyslot_available_event.InitializeAsInterProcessEvent());
+            R_ABORT_UNLESS(g_se_keyslot_available_event.InitializeAsInterProcessEvent());
             g_se_keyslot_available_event.Signal();
         }
 
         void InitializeDeviceAddressSpace() {
-            constexpr u64 DeviceName_SE = 29;
 
             /* Create Address Space. */
-            R_ASSERT(svcCreateDeviceAddressSpace(&g_se_das_hnd, 0, (1ul << 32)));
+            R_ABORT_UNLESS(svcCreateDeviceAddressSpace(&g_se_das_hnd, 0, (1ul << 32)));
 
             /* Attach it to the SE. */
-            R_ASSERT(svcAttachDeviceAddressSpace(DeviceName_SE, g_se_das_hnd));
+            R_ABORT_UNLESS(svcAttachDeviceAddressSpace(svc::DeviceName_Se, g_se_das_hnd));
 
             const u64 work_buffer_addr = reinterpret_cast<u64>(g_work_buffer);
             g_se_mapped_work_buffer_addr = WorkBufferMapBase + (work_buffer_addr % DeviceAddressSpaceAlign);
 
             /* Map the work buffer for the SE. */
-            R_ASSERT(svcMapDeviceAddressSpaceAligned(g_se_das_hnd, dd::GetCurrentProcessHandle(), work_buffer_addr, sizeof(g_work_buffer), g_se_mapped_work_buffer_addr, 3));
-        }
-
-        /* RSA OAEP implementation helpers. */
-        void CalcMgf1AndXor(void *dst, size_t dst_size, const void *src, size_t src_size) {
-            uint8_t *dst_u8 = reinterpret_cast<u8 *>(dst);
-
-            u32 ctr = 0;
-            while (dst_size > 0) {
-                const size_t cur_size = std::min(size_t(SHA256_HASH_SIZE), dst_size);
-                dst_size -= cur_size;
-
-                u32 ctr_be = __builtin_bswap32(ctr++);
-                u8 hash[SHA256_HASH_SIZE];
-                {
-                    Sha256Context ctx;
-                    sha256ContextCreate(&ctx);
-                    sha256ContextUpdate(&ctx, src, src_size);
-                    sha256ContextUpdate(&ctx, &ctr_be, sizeof(ctr_be));
-                    sha256ContextGetHash(&ctx, hash);
-                }
-
-                for (size_t i = 0; i < cur_size; i++) {
-                    *(dst_u8++) ^= hash[i];
-                }
-            }
-        }
-
-        size_t DecodeRsaOaep(void *dst, size_t dst_size, const void *label_digest, size_t label_digest_size, const void *src, size_t src_size) {
-            /* Very basic validation. */
-            if (dst_size == 0 || src_size != 0x100 || label_digest_size != SHA256_HASH_SIZE) {
-                return 0;
-            }
-
-            u8 block[0x100];
-            std::memcpy(block, src, sizeof(block));
-
-            /* First, validate byte 0 == 0, and unmask DB. */
-            int invalid = block[0];
-            u8 *salt = block + 1;
-            u8 *db = salt + SHA256_HASH_SIZE;
-            CalcMgf1AndXor(salt, SHA256_HASH_SIZE, db, src_size - (1 + SHA256_HASH_SIZE));
-            CalcMgf1AndXor(db, src_size - (1 + SHA256_HASH_SIZE), salt, SHA256_HASH_SIZE);
-
-            /* Validate label digest. */
-            for (size_t i = 0; i < SHA256_HASH_SIZE; i++) {
-                invalid |= db[i] ^ reinterpret_cast<const u8 *>(label_digest)[i];
-            }
-
-            /* Locate message after 00...0001 padding. */
-            const u8 *padded_msg = db + SHA256_HASH_SIZE;
-            size_t padded_msg_size = src_size - (1 + 2 * SHA256_HASH_SIZE);
-            size_t msg_ind = 0;
-            int not_found = 1;
-            int wrong_padding = 0;
-            size_t i = 0;
-            while (i < padded_msg_size) {
-                int zero = (padded_msg[i] == 0);
-                int one = (padded_msg[i] == 1);
-                msg_ind += static_cast<size_t>(not_found & one) * (++i);
-                not_found &= ~one;
-                wrong_padding |= (not_found & ~zero);
-            }
-
-            if (invalid | not_found | wrong_padding) {
-                return 0;
-            }
-
-            /* Copy message out. */
-            size_t msg_size = padded_msg_size - msg_ind;
-            if (msg_size > dst_size) {
-                return 0;
-            }
-            std::memcpy(dst, padded_msg + msg_ind, msg_size);
-            return msg_size;
+            R_ABORT_UNLESS(svcMapDeviceAddressSpaceAligned(g_se_das_hnd, dd::GetCurrentProcessHandle(), work_buffer_addr, sizeof(g_work_buffer), g_se_mapped_work_buffer_addr, 3));
         }
 
         /* Internal RNG functionality. */
@@ -556,7 +481,7 @@ namespace ams::spl::impl {
     Result GenerateAesKey(AesKey *out_key, const AccessKey &access_key, const KeySource &key_source) {
         smc::Result smc_rc;
 
-        static const KeySource s_generate_aes_key_source = {
+        static constexpr KeySource s_generate_aes_key_source = {
             .data = {0x89, 0x61, 0x5E, 0xE0, 0x5C, 0x31, 0xB6, 0x80, 0x5F, 0xE5, 0x8F, 0x3D, 0xA2, 0x4F, 0x7A, 0xA8}
         };
 
@@ -572,7 +497,7 @@ namespace ams::spl::impl {
     }
 
     Result DecryptAesKey(AesKey *out_key, const KeySource &key_source, u32 generation, u32 option) {
-        static const KeySource s_decrypt_aes_key_source = {
+        static constexpr KeySource s_decrypt_aes_key_source = {
             .data = {0x11, 0x70, 0x24, 0x2B, 0x48, 0x69, 0x11, 0xF1, 0x11, 0xB0, 0x0C, 0x47, 0x7C, 0xC3, 0xEF, 0x7E}
         };
 
@@ -794,7 +719,7 @@ namespace ams::spl::impl {
         /* Nintendo doesn't check this result code, but we will. */
         R_TRY(SecureExpMod(g_work_buffer, 0x100, base, base_size, mod, mod_size, smc::SecureExpModMode::Lotus));
 
-        size_t data_size = DecodeRsaOaep(dst, dst_size, label_digest, label_digest_size, g_work_buffer, 0x100);
+        size_t data_size = crypto::DecodeRsa2048OaepSha256(dst, dst_size, label_digest, label_digest_size, g_work_buffer, 0x100);
         R_UNLESS(data_size > 0, spl::ResultDecryptionFailed());
 
         *out_size = static_cast<u32>(data_size);

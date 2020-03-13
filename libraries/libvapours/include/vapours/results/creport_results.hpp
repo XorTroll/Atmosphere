@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -15,7 +15,7 @@
  */
 
 #pragma once
-#include "results_common.hpp"
+#include <vapours/results/results_common.hpp>
 
 namespace ams::creport {
 
@@ -30,7 +30,7 @@ namespace ams::creport {
     R_DEFINE_ERROR_RESULT(UserBreak,            6);
     R_DEFINE_ERROR_RESULT(DebuggerBreak,        7);
     R_DEFINE_ERROR_RESULT(UndefinedSystemCall,  8);
-    R_DEFINE_ERROR_RESULT(SystemMemoryError,    9);
+    R_DEFINE_ERROR_RESULT(MemorySystemError,    9);
 
     R_DEFINE_ERROR_RESULT(IncompleteReport,     99);
 

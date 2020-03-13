@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -38,9 +38,9 @@ namespace ams::mitm::ns {
 
         /* Create mitm servers. */
         if (hos::GetVersion() < hos::Version_300) {
-            R_ASSERT(g_server_manager.RegisterMitmServer<NsAmMitmService>(NsAmMitmServiceName));
+            R_ABORT_UNLESS(g_server_manager.RegisterMitmServer<NsAmMitmService>(NsAmMitmServiceName));
         } else {
-            R_ASSERT(g_server_manager.RegisterMitmServer<NsWebMitmService>(NsWebMitmServiceName));
+            R_ABORT_UNLESS(g_server_manager.RegisterMitmServer<NsWebMitmService>(NsWebMitmServiceName));
         }
 
         /* Loop forever, servicing our services. */

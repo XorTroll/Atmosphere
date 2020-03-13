@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -15,7 +15,6 @@
  */
 #include "ldr_capabilities.hpp"
 #include "ldr_content_management.hpp"
-#include "ldr_ecs.hpp"
 #include "ldr_launch_record.hpp"
 #include "ldr_meta.hpp"
 #include "ldr_patcher.hpp"
@@ -47,38 +46,26 @@ namespace ams::ldr {
             Nso_Count,
         };
 
-        constexpr const char *GetNsoName(size_t idx) {
-            AMS_ASSERT(idx < Nso_Count);
-
-            constexpr const char *NsoNames[Nso_Count] = {
-                "rtld",
-                "main",
-                "subsdk0",
-                "subsdk1",
-                "subsdk2",
-                "subsdk3",
-                "subsdk4",
-                "subsdk5",
-                "subsdk6",
-                "subsdk7",
-                "subsdk8",
-                "subsdk9",
-                "sdk",
-            };
-            return NsoNames[idx];
-        }
-
-        struct CreateProcessInfo {
-            char name[12];
-            u32  version;
-            ncm::ProgramId program_id;
-            u64  code_address;
-            u32  code_num_pages;
-            u32  flags;
-            Handle reslimit;
-            u32  system_resource_num_pages;
+        constexpr inline const char *NsoPaths[Nso_Count] = {
+            ENCODE_ATMOSPHERE_CODE_PATH("/rtld"),
+            ENCODE_ATMOSPHERE_CODE_PATH("/main"),
+            ENCODE_ATMOSPHERE_CODE_PATH("/subsdk0"),
+            ENCODE_ATMOSPHERE_CODE_PATH("/subsdk1"),
+            ENCODE_ATMOSPHERE_CODE_PATH("/subsdk2"),
+            ENCODE_ATMOSPHERE_CODE_PATH("/subsdk3"),
+            ENCODE_ATMOSPHERE_CODE_PATH("/subsdk4"),
+            ENCODE_ATMOSPHERE_CODE_PATH("/subsdk5"),
+            ENCODE_ATMOSPHERE_CODE_PATH("/subsdk6"),
+            ENCODE_ATMOSPHERE_CODE_PATH("/subsdk7"),
+            ENCODE_ATMOSPHERE_CODE_PATH("/subsdk8"),
+            ENCODE_ATMOSPHERE_CODE_PATH("/subsdk9"),
+            ENCODE_ATMOSPHERE_CODE_PATH("/sdk"),
         };
-        static_assert(sizeof(CreateProcessInfo) == 0x30, "CreateProcessInfo definition!");
+
+        constexpr const char *GetNsoPath(size_t idx) {
+            AMS_ABORT_UNLESS(idx < Nso_Count);
+            return NsoPaths[idx];
+        }
 
         struct ProcessInfo {
             os::ManagedHandle process_handle;
@@ -96,7 +83,10 @@ namespace ams::ldr {
         #include "ldr_anti_downgrade_tables.inc"
 
         Result ValidateProgramVersion(ncm::ProgramId program_id, u32 version) {
-            R_UNLESS(hos::GetVersion() >= hos::Version_810, ResultSuccess());
+            /* No version verification is done before 8.1.0. */
+            R_SUCCEED_IF(hos::GetVersion() < hos::Version_810);
+
+            /* Do version-dependent validation, if compiled to do so. */
 #ifdef LDR_VALIDATE_PROCESS_VERSION
             const MinimumProgramVersion *entries = nullptr;
             size_t num_entries = 0;
@@ -175,17 +165,21 @@ namespace ams::ldr {
             return static_cast<Acid::PoolPartition>((meta->acid->flags & Acid::AcidFlag_PoolPartitionMask) >> Acid::AcidFlag_PoolPartitionShift);
         }
 
-        Result LoadNsoHeaders(ncm::ProgramId program_id, const cfg::OverrideStatus &override_status, NsoHeader *nso_headers, bool *has_nso) {
+        Result LoadNsoHeaders(NsoHeader *nso_headers, bool *has_nso) {
             /* Clear NSOs. */
             std::memset(nso_headers, 0, sizeof(*nso_headers) * Nso_Count);
             std::memset(has_nso, 0, sizeof(*has_nso) * Nso_Count);
 
             for (size_t i = 0; i < Nso_Count; i++) {
-                FILE *f = nullptr;
-                if (R_SUCCEEDED(OpenCodeFile(f, program_id, override_status, GetNsoName(i)))) {
-                    ON_SCOPE_EXIT { fclose(f); };
+                fs::FileHandle file;
+                if (R_SUCCEEDED(fs::OpenFile(std::addressof(file), GetNsoPath(i), fs::OpenMode_Read))) {
+                    ON_SCOPE_EXIT { fs::CloseFile(file); };
+
                     /* Read NSO header. */
-                    R_UNLESS(fread(nso_headers + i, sizeof(*nso_headers), 1, f) == 1, ResultInvalidNso());
+                    size_t read_size;
+                    R_TRY(fs::ReadFile(std::addressof(read_size), file, 0, nso_headers + i, sizeof(*nso_headers)));
+                    R_UNLESS(read_size == sizeof(*nso_headers), ResultInvalidNso());
+
                     has_nso[i] = true;
                 }
             }
@@ -310,14 +304,14 @@ namespace ams::ldr {
             return ResultSuccess();
         }
 
-        Result GetCreateProcessInfo(CreateProcessInfo *out, const Meta *meta, u32 flags, Handle reslimit_h) {
+        Result GetCreateProcessParameter(svc::CreateProcessParameter *out, const Meta *meta, u32 flags, Handle reslimit_h) {
             /* Clear output. */
             std::memset(out, 0, sizeof(*out));
 
             /* Set name, version, program id, resource limit handle. */
             std::memcpy(out->name, meta->npdm->program_name, sizeof(out->name) - 1);
             out->version = meta->npdm->version;
-            out->program_id = meta->aci->program_id;
+            out->program_id = static_cast<u64>(meta->aci->program_id);
             out->reslimit = reslimit_h;
 
             /* Set flags. */
@@ -345,7 +339,7 @@ namespace ams::ldr {
             return ResultSuccess();
         }
 
-        Result DecideAddressSpaceLayout(ProcessInfo *out, CreateProcessInfo *out_cpi, const NsoHeader *nso_headers, const bool *has_nso, const args::ArgumentInfo *arg_info) {
+        Result DecideAddressSpaceLayout(ProcessInfo *out, svc::CreateProcessParameter *out_param, const NsoHeader *nso_headers, const bool *has_nso, const args::ArgumentInfo *arg_info) {
             /* Clear output. */
             out->args_address = 0;
             out->args_size = 0;
@@ -381,7 +375,7 @@ namespace ams::ldr {
             uintptr_t aslr_start = 0;
             uintptr_t aslr_size  = 0;
             if (hos::GetVersion() >= hos::Version_200) {
-                switch (out_cpi->flags & svc::CreateProcessFlag_AddressSpaceMask) {
+                switch (out_param->flags & svc::CreateProcessFlag_AddressSpaceMask) {
                     case svc::CreateProcessFlag_AddressSpace32Bit:
                     case svc::CreateProcessFlag_AddressSpace32BitWithoutAlias:
                         aslr_start = map::AslrBase32Bit;
@@ -399,7 +393,7 @@ namespace ams::ldr {
                 }
             } else {
                 /* On 1.0.0, only 2 address space types existed. */
-                if (out_cpi->flags & svc::CreateProcessFlag_AddressSpace64BitDeprecated) {
+                if (out_param->flags & svc::CreateProcessFlag_AddressSpace64BitDeprecated) {
                     aslr_start = map::AslrBase64BitDeprecated;
                     aslr_size  = map::AslrSize64BitDeprecated;
                 } else {
@@ -412,7 +406,7 @@ namespace ams::ldr {
             /* Set Create Process output. */
             uintptr_t aslr_slide = 0;
             uintptr_t free_size = (aslr_size - total_size);
-            if (out_cpi->flags & svc::CreateProcessFlag_EnableAslr) {
+            if (out_param->flags & svc::CreateProcessFlag_EnableAslr) {
                 /* Nintendo uses MT19937 (not os::GenerateRandomBytes), but we'll just use TinyMT for now. */
                 aslr_slide = os::GenerateRandomU64(free_size / os::MemoryBlockUnitSize) * os::MemoryBlockUnitSize;
             }
@@ -428,25 +422,25 @@ namespace ams::ldr {
                 out->args_address += aslr_start;
             }
 
-            out_cpi->code_address = aslr_start;
-            out_cpi->code_num_pages = total_size >> 12;
+            out_param->code_address = aslr_start;
+            out_param->code_num_pages = total_size >> 12;
 
             return ResultSuccess();
         }
 
         Result CreateProcessImpl(ProcessInfo *out, const Meta *meta, const NsoHeader *nso_headers, const bool *has_nso, const args::ArgumentInfo *arg_info, u32 flags, Handle reslimit_h) {
-            /* Get CreateProcessInfo. */
-            CreateProcessInfo cpi;
-            R_TRY(GetCreateProcessInfo(&cpi, meta, flags, reslimit_h));
+            /* Get CreateProcessParameter. */
+            svc::CreateProcessParameter param;
+            R_TRY(GetCreateProcessParameter(&param, meta, flags, reslimit_h));
 
             /* Decide on an NSO layout. */
-            R_TRY(DecideAddressSpaceLayout(out, &cpi, nso_headers, has_nso, arg_info));
+            R_TRY(DecideAddressSpaceLayout(out, &param, nso_headers, has_nso, arg_info));
 
             /* Actually create process. const_cast necessary because libnx doesn't declare svcCreateProcess with const u32*. */
-            return svcCreateProcess(out->process_handle.GetPointer(), &cpi, reinterpret_cast<const u32 *>(meta->aci_kac), meta->aci->kac_size / sizeof(u32));
+            return svcCreateProcess(out->process_handle.GetPointer(), &param, reinterpret_cast<const u32 *>(meta->aci_kac), meta->aci->kac_size / sizeof(u32));
         }
 
-        Result LoadNsoSegment(FILE *f, const NsoHeader::SegmentInfo *segment, size_t file_size, const u8 *file_hash, bool is_compressed, bool check_hash, uintptr_t map_base, uintptr_t map_end) {
+        Result LoadNsoSegment(fs::FileHandle file, const NsoHeader::SegmentInfo *segment, size_t file_size, const u8 *file_hash, bool is_compressed, bool check_hash, uintptr_t map_base, uintptr_t map_end) {
             /* Select read size based on compression. */
             if (!is_compressed) {
                 file_size = segment->size;
@@ -458,8 +452,9 @@ namespace ams::ldr {
 
             /* Load data from file. */
             uintptr_t load_address = is_compressed ? map_end - file_size : map_base;
-            fseek(f, segment->file_offset, SEEK_SET);
-            R_UNLESS(fread(reinterpret_cast<void *>(load_address), file_size, 1, f) == 1, ResultInvalidNso());
+            size_t read_size;
+            R_TRY(fs::ReadFile(std::addressof(read_size), file, segment->file_offset, reinterpret_cast<void *>(load_address), file_size));
+            R_UNLESS(read_size == file_size, ResultInvalidNso());
 
             /* Uncompress if necessary. */
             if (is_compressed) {
@@ -469,8 +464,8 @@ namespace ams::ldr {
 
             /* Check hash if necessary. */
             if (check_hash) {
-                u8 hash[SHA256_HASH_SIZE];
-                sha256CalculateHash(hash, reinterpret_cast<void *>(map_base), segment->size);
+                u8 hash[crypto::Sha256Generator::HashSize];
+                crypto::GenerateSha256Hash(hash, sizeof(hash), reinterpret_cast<void *>(map_base), segment->size);
 
                 R_UNLESS(std::memcmp(hash, file_hash, sizeof(hash)) == 0, ResultInvalidNso());
             }
@@ -478,19 +473,19 @@ namespace ams::ldr {
             return ResultSuccess();
         }
 
-        Result LoadNsoIntoProcessMemory(Handle process_handle, FILE *f, uintptr_t map_address, const NsoHeader *nso_header, uintptr_t nso_address, size_t nso_size) {
+        Result LoadNsoIntoProcessMemory(Handle process_handle, fs::FileHandle file, uintptr_t map_address, const NsoHeader *nso_header, uintptr_t nso_address, size_t nso_size) {
             /* Map and read data from file. */
             {
                 map::AutoCloseMap mapper(map_address, process_handle, nso_address, nso_size);
                 R_TRY(mapper.GetResult());
 
                 /* Load NSO segments. */
-                R_TRY(LoadNsoSegment(f, &nso_header->segments[NsoHeader::Segment_Text], nso_header->text_compressed_size, nso_header->text_hash, (nso_header->flags & NsoHeader::Flag_CompressedText) != 0,
-                                        (nso_header->flags & NsoHeader::Flag_CheckHashText) != 0, map_address + nso_header->text_dst_offset, map_address + nso_size));
-                R_TRY(LoadNsoSegment(f, &nso_header->segments[NsoHeader::Segment_Ro], nso_header->ro_compressed_size, nso_header->ro_hash, (nso_header->flags & NsoHeader::Flag_CompressedRo) != 0,
-                                        (nso_header->flags & NsoHeader::Flag_CheckHashRo) != 0, map_address + nso_header->ro_dst_offset, map_address + nso_size));
-                R_TRY(LoadNsoSegment(f, &nso_header->segments[NsoHeader::Segment_Rw], nso_header->rw_compressed_size, nso_header->rw_hash, (nso_header->flags & NsoHeader::Flag_CompressedRw) != 0,
-                                        (nso_header->flags & NsoHeader::Flag_CheckHashRw) != 0, map_address + nso_header->rw_dst_offset, map_address + nso_size));
+                R_TRY(LoadNsoSegment(file, &nso_header->segments[NsoHeader::Segment_Text], nso_header->text_compressed_size, nso_header->text_hash, (nso_header->flags & NsoHeader::Flag_CompressedText) != 0,
+                                           (nso_header->flags & NsoHeader::Flag_CheckHashText) != 0, map_address + nso_header->text_dst_offset, map_address + nso_size));
+                R_TRY(LoadNsoSegment(file, &nso_header->segments[NsoHeader::Segment_Ro], nso_header->ro_compressed_size, nso_header->ro_hash, (nso_header->flags & NsoHeader::Flag_CompressedRo) != 0,
+                                           (nso_header->flags & NsoHeader::Flag_CheckHashRo) != 0, map_address + nso_header->ro_dst_offset, map_address + nso_size));
+                R_TRY(LoadNsoSegment(file, &nso_header->segments[NsoHeader::Segment_Rw], nso_header->rw_compressed_size, nso_header->rw_hash, (nso_header->flags & NsoHeader::Flag_CompressedRw) != 0,
+                                           (nso_header->flags & NsoHeader::Flag_CheckHashRw) != 0, map_address + nso_header->rw_dst_offset, map_address + nso_size));
 
                 /* Clear unused space to zero. */
                 const size_t text_end = nso_header->text_dst_offset + nso_header->text_size;
@@ -522,20 +517,20 @@ namespace ams::ldr {
             return ResultSuccess();
         }
 
-        Result LoadNsosIntoProcessMemory(const ProcessInfo *process_info, const ncm::ProgramId program_id, const cfg::OverrideStatus &override_status, const NsoHeader *nso_headers, const bool *has_nso, const args::ArgumentInfo *arg_info) {
+        Result LoadNsosIntoProcessMemory(const ProcessInfo *process_info, const NsoHeader *nso_headers, const bool *has_nso, const args::ArgumentInfo *arg_info) {
             const Handle process_handle = process_info->process_handle.Get();
 
             /* Load each NSO. */
             for (size_t i = 0; i < Nso_Count; i++) {
                 if (has_nso[i]) {
-                    FILE *f = nullptr;
-                    R_TRY(OpenCodeFile(f, program_id, override_status, GetNsoName(i)));
-                    ON_SCOPE_EXIT { fclose(f); };
+                    fs::FileHandle file;
+                    R_TRY(fs::OpenFile(std::addressof(file), GetNsoPath(i), fs::OpenMode_Read));
+                    ON_SCOPE_EXIT { fs::CloseFile(file); };
 
                     uintptr_t map_address = 0;
                     R_TRY(map::LocateMappableSpace(&map_address, process_info->nso_size[i]));
 
-                    R_TRY(LoadNsoIntoProcessMemory(process_handle, f, map_address, nso_headers + i, process_info->nso_address[i], process_info->nso_size[i]));
+                    R_TRY(LoadNsoIntoProcessMemory(process_handle, file, map_address, nso_headers + i, process_info->nso_address[i], process_info->nso_size[i]));
                 }
             }
 
@@ -585,7 +580,7 @@ namespace ams::ldr {
             R_TRY(ValidateMeta(&meta, loc));
 
             /* Load, validate NSOs. */
-            R_TRY(LoadNsoHeaders(loc.program_id, override_status, nso_headers, has_nso));
+            R_TRY(LoadNsoHeaders(nso_headers, has_nso));
             R_TRY(ValidateNsoHeaders(nso_headers, has_nso));
 
             /* Actually create process. */
@@ -593,7 +588,7 @@ namespace ams::ldr {
             R_TRY(CreateProcessImpl(&info, &meta, nso_headers, has_nso, arg_info, flags, reslimit_h));
 
             /* Load NSOs into process memory. */
-            R_TRY(LoadNsosIntoProcessMemory(&info, loc.program_id, override_status, nso_headers, has_nso, arg_info));
+            R_TRY(LoadNsosIntoProcessMemory(&info, nso_headers, has_nso, arg_info));
 
             /* Register NSOs with ro manager. */
             {
@@ -612,13 +607,13 @@ namespace ams::ldr {
             }
 
             /* If we're overriding for HBL, perform HTML document redirection. */
-            if (mount.IsHblMounted()) {
+            if (override_status.IsHbl()) {
                 /* Don't validate result, failure is okay. */
                 RedirectHtmlDocumentPathForHbl(loc);
             }
 
-            /* Clear the ECS entry for the program. */
-            R_ASSERT(ecs::Clear(loc.program_id));
+            /* Clear the external code for the program. */
+            fssystem::DestroyExternalCode(loc.program_id);
 
             /* Note that we've created the program. */
             SetLaunchedProgram(loc.program_id);

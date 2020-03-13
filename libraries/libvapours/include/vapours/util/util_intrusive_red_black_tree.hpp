@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -16,7 +16,9 @@
 
 #pragma once
 #include <freebsd/sys/tree.h>
-#include "util_parent_of_member.hpp"
+#include <vapours/common.hpp>
+#include <vapours/assert.hpp>
+#include <vapours/util/util_parent_of_member.hpp>
 
 namespace ams::util {
 
@@ -28,8 +30,9 @@ namespace ams::util {
             template<class, class, class>
             friend class IntrusiveRedBlackTree;
         public:
-            IntrusiveRedBlackTreeNode() { /* ... */}
+            constexpr IntrusiveRedBlackTreeNode() : entry() { /* ... */}
     };
+    static_assert(std::is_literal_type<IntrusiveRedBlackTreeNode>::value);
 
     template<class T, class Traits, class Comparator>
     class IntrusiveRedBlackTree {
@@ -124,7 +127,7 @@ namespace ams::util {
             }
 
             static constexpr inline IntrusiveRedBlackTreeNode *GetPrev(IntrusiveRedBlackTreeNode *node) {
-                return RB_NEXT(IntrusiveRedBlackTreeRoot, nullptr, node);
+                return RB_PREV(IntrusiveRedBlackTreeRoot, nullptr, node);
             }
 
             static constexpr inline IntrusiveRedBlackTreeNode const *GetPrev(IntrusiveRedBlackTreeNode const *node) {
@@ -132,7 +135,7 @@ namespace ams::util {
             }
 
             /* Define accessors using RB_* functions. */
-            void InitializeImpl() {
+            constexpr ALWAYS_INLINE void InitializeImpl() {
                 RB_INIT(&this->root);
             }
 
@@ -145,7 +148,7 @@ namespace ams::util {
             }
 
             IntrusiveRedBlackTreeNode *GetMaxImpl() const {
-                return RB_MIN(IntrusiveRedBlackTreeRoot, const_cast<IntrusiveRedBlackTreeRoot *>(&this->root));
+                return RB_MAX(IntrusiveRedBlackTreeRoot, const_cast<IntrusiveRedBlackTreeRoot *>(&this->root));
             }
 
             IntrusiveRedBlackTreeNode *InsertImpl(IntrusiveRedBlackTreeNode *node) {
@@ -165,7 +168,7 @@ namespace ams::util {
             }
 
         public:
-            IntrusiveRedBlackTree() {
+            constexpr ALWAYS_INLINE IntrusiveRedBlackTree() : root() {
                 this->InitializeImpl();
             }
 
@@ -186,6 +189,14 @@ namespace ams::util {
                 return const_iterator(Traits::GetParent(static_cast<IntrusiveRedBlackTreeNode *>(nullptr)));
             }
 
+            const_iterator cbegin() const {
+                return this->begin();
+            }
+
+            const_iterator cend() const {
+                return this->end();
+            }
+
             iterator iterator_to(reference ref) {
                 return iterator(&ref);
             }
@@ -200,19 +211,19 @@ namespace ams::util {
             }
 
             reference back() {
-                return Traits::GetParent(this->GetMaxImpl());
+                return *Traits::GetParent(this->GetMaxImpl());
             }
 
             const_reference back() const {
-                return Traits::GetParent(this->GetMaxImpl());
+                return *Traits::GetParent(this->GetMaxImpl());
             }
 
             reference front() {
-                return Traits::GetParent(this->GetMinImpl());
+                return *Traits::GetParent(this->GetMinImpl());
             }
 
             const_reference front() const {
-                return Traits::GetParent(this->GetMinImpl());
+                return *Traits::GetParent(this->GetMinImpl());
             }
 
             iterator insert(reference ref) {
@@ -243,26 +254,29 @@ namespace ams::util {
     class IntrusiveRedBlackTreeMemberTraits<Member, Derived> {
         public:
             template<class Comparator>
-            using ListType = IntrusiveRedBlackTree<Derived, IntrusiveRedBlackTreeMemberTraits, Comparator>;
+            using TreeType = IntrusiveRedBlackTree<Derived, IntrusiveRedBlackTreeMemberTraits, Comparator>;
         private:
             template<class, class, class>
             friend class IntrusiveRedBlackTree;
 
             static constexpr IntrusiveRedBlackTreeNode *GetNode(Derived *parent) {
-                return &(parent->*Member);
+                return std::addressof(parent->*Member);
             }
 
             static constexpr IntrusiveRedBlackTreeNode const *GetNode(Derived const *parent) {
-                return &(parent->*Member);
+                return std::addressof(parent->*Member);
             }
 
             static constexpr Derived *GetParent(IntrusiveRedBlackTreeNode *node) {
-                return static_cast<Derived *>(util::GetParentPointer<Member>(node));
+                return util::GetParentPointer<Member, Derived>(node);
             }
 
             static constexpr Derived const *GetParent(IntrusiveRedBlackTreeNode const *node) {
-                return static_cast<const Derived *>(util::GetParentPointer<Member>(node));
+                return util::GetParentPointer<Member, Derived>(node);
             }
+        private:
+            static constexpr TYPED_STORAGE(Derived) DerivedStorage = {};
+            static_assert(GetParent(GetNode(GetPointer(DerivedStorage))) == GetPointer(DerivedStorage));
     };
 
     template<class Derived>
@@ -272,7 +286,7 @@ namespace ams::util {
     class IntrusiveRedBlackTreeBaseTraits {
         public:
             template<class Comparator>
-            using ListType = IntrusiveRedBlackTree<Derived, IntrusiveRedBlackTreeBaseTraits, Comparator>;
+            using TreeType = IntrusiveRedBlackTree<Derived, IntrusiveRedBlackTreeBaseTraits, Comparator>;
         private:
             template<class, class, class>
             friend class IntrusiveRedBlackTree;

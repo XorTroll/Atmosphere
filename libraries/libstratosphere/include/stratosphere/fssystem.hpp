@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -16,6 +16,7 @@
 
 #pragma once
 #include "fssystem/fssystem_utility.hpp"
+#include "fssystem/fssystem_external_code.hpp"
 #include "fssystem/fssystem_path_tool.hpp"
 #include "fssystem/fssystem_subdirectory_filesystem.hpp"
 #include "fssystem/fssystem_directory_redirection_filesystem.hpp"

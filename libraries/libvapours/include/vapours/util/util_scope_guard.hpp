@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -16,7 +16,8 @@
 
  /* Scope guard logic lovingly taken from Andrei Alexandrescu's "Systemic Error Handling in C++" */
 #pragma once
-#include "../defines.hpp"
+#include <vapours/common.hpp>
+#include <vapours/assert.hpp>
 
 namespace ams::util {
 
@@ -29,24 +30,24 @@ namespace ams::util {
                 F f;
                 bool active;
             public:
-                constexpr ScopeGuard(F f) : f(std::move(f)), active(true) { }
-                ~ScopeGuard() { if (active) { f(); } }
-                void Cancel() { active = false; }
+                constexpr ALWAYS_INLINE ScopeGuard(F f) : f(std::move(f)), active(true) { }
+                ALWAYS_INLINE ~ScopeGuard() { if (active) { f(); } }
+                ALWAYS_INLINE void Cancel() { active = false; }
 
-                ScopeGuard(ScopeGuard&& rhs) : f(std::move(rhs.f)), active(rhs.active) {
+                ALWAYS_INLINE ScopeGuard(ScopeGuard&& rhs) : f(std::move(rhs.f)), active(rhs.active) {
                     rhs.Cancel();
                 }
         };
 
         template<class F>
-        constexpr ScopeGuard<F> MakeScopeGuard(F f) {
+        constexpr ALWAYS_INLINE ScopeGuard<F> MakeScopeGuard(F f) {
             return ScopeGuard<F>(std::move(f));
         }
 
         enum class ScopeGuardOnExit {};
 
         template <typename F>
-        constexpr ScopeGuard<F> operator+(ScopeGuardOnExit, F&& f) {
+        constexpr ALWAYS_INLINE ScopeGuard<F> operator+(ScopeGuardOnExit, F&& f) {
             return ScopeGuard<F>(std::forward<F>(f));
         }
 
@@ -54,5 +55,5 @@ namespace ams::util {
 
 }
 
-#define SCOPE_GUARD ::ams::util::impl::ScopeGuardOnExit() + [&]()
+#define SCOPE_GUARD   ::ams::util::impl::ScopeGuardOnExit() + [&]() ALWAYS_INLINE_LAMBDA
 #define ON_SCOPE_EXIT auto ANONYMOUS_VARIABLE(SCOPE_EXIT_STATE_) = SCOPE_GUARD

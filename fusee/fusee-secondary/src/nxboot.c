@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -56,6 +56,8 @@
 #include "exosphere_bin.h"
 #include "sept_secondary_00_enc.h"
 #include "sept_secondary_01_enc.h"
+#include "sept_secondary_dev_00_enc.h"
+#include "sept_secondary_dev_01_enc.h"
 #include "lp0fw_bin.h"
 #include "emummc_kip.h"
 #undef u8
@@ -182,6 +184,12 @@ static int stratosphere_ini_handler(void *user, const char *section, const char 
             strat_cfg->has_nogc_config = true;
             sscanf(value, "%d", &tmp);
             strat_cfg->enable_nogc = tmp != 0;
+        } else if (strcmp(name, STRATOSPHERE_ENABLE_NCM_KEY) == 0) {
+            sscanf(value, "%d", &tmp);
+            strat_cfg->ncm_enabled = tmp != 0;
+            if (strat_cfg->ncm_enabled) {
+                stratosphere_enable_ncm();
+            }
         } else {
             return 0;
         }
@@ -607,11 +615,21 @@ uint32_t nxboot_main(void) {
         }
 
         if (tsec_fw_size == 0x3000) {
-            sept_secondary_enc = sept_secondary_00_enc;
-            sept_secondary_enc_size = sept_secondary_00_enc_size;
+            if (fuse_get_retail_type() != 0) {
+                sept_secondary_enc = sept_secondary_00_enc;
+                sept_secondary_enc_size = sept_secondary_00_enc_size;
+            } else {
+                sept_secondary_enc = sept_secondary_dev_00_enc;
+                sept_secondary_enc_size = sept_secondary_dev_00_enc_size;
+            }
         } else if (tsec_fw_size == 0x3300) {
-            sept_secondary_enc = sept_secondary_01_enc;
-            sept_secondary_enc_size = sept_secondary_01_enc_size;
+            if (fuse_get_retail_type() != 0) {
+                sept_secondary_enc = sept_secondary_01_enc;
+                sept_secondary_enc_size = sept_secondary_01_enc_size;
+            } else {
+                sept_secondary_enc = sept_secondary_dev_01_enc;
+                sept_secondary_enc_size = sept_secondary_dev_01_enc_size;
+            }
         } else {
             fatal_error("[NXBOOT] Unable to identify sept revision to run.");
         }
@@ -620,12 +638,22 @@ uint32_t nxboot_main(void) {
             fatal_error("[NXBOOT] Failed to read the TSEC firmware from Package1loader!\n");
         }
         if (target_firmware >= ATMOSPHERE_TARGET_FIRMWARE_810) {
-            sept_secondary_enc = sept_secondary_01_enc;
-            sept_secondary_enc_size = sept_secondary_01_enc_size;
+            if (fuse_get_retail_type() != 0) {
+                sept_secondary_enc = sept_secondary_01_enc;
+                sept_secondary_enc_size = sept_secondary_01_enc_size;
+            } else {
+                sept_secondary_enc = sept_secondary_dev_01_enc;
+                sept_secondary_enc_size = sept_secondary_dev_01_enc_size;
+            }
             tsec_fw_size = 0x3300;
         } else if (target_firmware >= ATMOSPHERE_TARGET_FIRMWARE_700) {
-            sept_secondary_enc = sept_secondary_00_enc;
-            sept_secondary_enc_size = sept_secondary_00_enc_size;
+            if (fuse_get_retail_type() != 0) {
+                sept_secondary_enc = sept_secondary_00_enc;
+                sept_secondary_enc_size = sept_secondary_00_enc_size;
+            } else {
+                sept_secondary_enc = sept_secondary_dev_00_enc;
+                sept_secondary_enc_size = sept_secondary_dev_00_enc_size;
+            }
             tsec_fw_size = 0x3000;
         } else if (target_firmware == ATMOSPHERE_TARGET_FIRMWARE_620) {
             tsec_fw_size = 0x2900;

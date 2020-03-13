@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -78,7 +78,7 @@ namespace ams::mitm::fs::romfs {
         }
 
         void Cleanup() {
-            AMS_ASSERT(!this->cleaned_up);
+            AMS_ABORT_UNLESS(!this->cleaned_up);
             this->cleaned_up = true;
 
             switch (this->source_type) {

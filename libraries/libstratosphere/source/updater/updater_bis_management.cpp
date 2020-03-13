@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -18,48 +18,39 @@
 namespace ams::updater {
 
     Result BisAccessor::Initialize() {
-        R_TRY(fsOpenBisStorage(&this->storage, this->partition_id));
-        this->active = true;
-        return ResultSuccess();
+        return fs::OpenBisPartition(std::addressof(this->storage), this->partition_id);
     }
 
     void BisAccessor::Finalize() {
-        if (this->active) {
-            fsStorageClose(&this->storage);
-            this->active = false;
-        }
+        /* ... */
     }
 
     Result BisAccessor::Read(void *dst, size_t size, u64 offset) {
-        AMS_ASSERT((offset % SectorAlignment) == 0);
-        return fsStorageRead(&this->storage, offset, dst, size);
+        AMS_ABORT_UNLESS((offset % SectorAlignment) == 0);
+        return this->storage->Read(static_cast<u32>(offset), dst, size);
     }
 
     Result BisAccessor::Write(u64 offset, const void *src, size_t size) {
-        AMS_ASSERT((offset % SectorAlignment) == 0);
-        return fsStorageWrite(&this->storage, offset, src, size);
+        AMS_ABORT_UNLESS((offset % SectorAlignment) == 0);
+        return this->storage->Write(static_cast<u32>(offset), src, size);
     }
 
     Result BisAccessor::Write(u64 offset, size_t size, const char *bip_path, void *work_buffer, size_t work_buffer_size) {
-        AMS_ASSERT((offset % SectorAlignment) == 0);
-        AMS_ASSERT((work_buffer_size % SectorAlignment) == 0);
+        AMS_ABORT_UNLESS((offset % SectorAlignment) == 0);
+        AMS_ABORT_UNLESS((work_buffer_size % SectorAlignment) == 0);
 
-        FILE *bip_fp = fopen(bip_path, "rb");
-        if (bip_fp == NULL) {
-            return ResultInvalidBootImagePackage();
-        }
-        ON_SCOPE_EXIT { fclose(bip_fp); };
+        fs::FileHandle file;
+        R_TRY_CATCH(fs::OpenFile(std::addressof(file), bip_path, fs::OpenMode_Read)) {
+            R_CONVERT(fs::ResultPathNotFound, ResultInvalidBootImagePackage())
+        } R_END_TRY_CATCH;
+        ON_SCOPE_EXIT { fs::CloseFile(file); };
 
         size_t written = 0;
         while (true) {
             std::memset(work_buffer, 0, work_buffer_size);
-            size_t read_size = fread(work_buffer, 1, work_buffer_size, bip_fp);
-            if (read_size != work_buffer_size) {
-                if (ferror(bip_fp)) {
-                    return fsdevGetLastResult();
-                }
-            }
-            AMS_ASSERT(written + read_size <= size);
+            size_t read_size;
+            R_TRY(fs::ReadFile(std::addressof(read_size), file, written, work_buffer, work_buffer_size, fs::ReadOption()));
+            AMS_ABORT_UNLESS(written + read_size <= size);
 
             size_t aligned_size = ((read_size + SectorAlignment - 1) / SectorAlignment) * SectorAlignment;
             R_TRY(this->Write(offset + written, work_buffer, aligned_size));
@@ -73,8 +64,8 @@ namespace ams::updater {
     }
 
     Result BisAccessor::Clear(u64 offset, u64 size, void *work_buffer, size_t work_buffer_size) {
-        AMS_ASSERT((offset % SectorAlignment) == 0);
-        AMS_ASSERT((work_buffer_size % SectorAlignment) == 0);
+        AMS_ABORT_UNLESS((offset % SectorAlignment) == 0);
+        AMS_ABORT_UNLESS((work_buffer_size % SectorAlignment) == 0);
 
         std::memset(work_buffer, 0, work_buffer_size);
 
@@ -88,33 +79,34 @@ namespace ams::updater {
     }
 
     Result BisAccessor::GetHash(void *dst, u64 offset, u64 size, u64 hash_size, void *work_buffer, size_t work_buffer_size) {
-        AMS_ASSERT((offset % SectorAlignment) == 0);
-        AMS_ASSERT((work_buffer_size % SectorAlignment) == 0);
+        AMS_ABORT_UNLESS((offset % SectorAlignment) == 0);
+        AMS_ABORT_UNLESS((work_buffer_size % SectorAlignment) == 0);
 
-        Sha256Context sha_ctx;
-        sha256ContextCreate(&sha_ctx);
+        crypto::Sha256Generator generator;
+        generator.Initialize();
 
         size_t total_read = 0;
         while (total_read < hash_size) {
             size_t cur_read_size = std::min(work_buffer_size, size - total_read);
             size_t cur_update_size = std::min(cur_read_size, hash_size - total_read);
             R_TRY(this->Read(work_buffer, cur_read_size, offset + total_read));
-            sha256ContextUpdate(&sha_ctx, work_buffer, cur_update_size);
+            generator.Update(work_buffer, cur_update_size);
+
             total_read += cur_read_size;
         }
-        sha256ContextGetHash(&sha_ctx, dst);
+        generator.GetHash(dst, hash_size);
 
         return ResultSuccess();
     }
 
     size_t Boot0Accessor::GetBootloaderVersion(void *bct) {
         u32 version = *reinterpret_cast<u32 *>(reinterpret_cast<uintptr_t>(bct) + BctVersionOffset);
-        AMS_ASSERT(version <= BctVersionMax);
+        AMS_ABORT_UNLESS(version <= BctVersionMax);
         return static_cast<size_t>(version);
     }
 
     size_t Boot0Accessor::GetEksIndex(size_t bootloader_version) {
-        AMS_ASSERT(bootloader_version <= BctVersionMax);
+        AMS_ABORT_UNLESS(bootloader_version <= BctVersionMax);
         return (bootloader_version > 0) ? bootloader_version - 1 : 0;
     }
 
@@ -140,9 +132,10 @@ namespace ams::updater {
         size_t read_size;
         R_TRY(this->Read(&read_size, work_buffer, BctSize, which));
 
-        void *dst_pubk = reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(dst_bct) + BctPubkOffset);
+        void *dst_pubk = reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(dst_bct)     + BctPubkOffset);
         void *src_pubk = reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(work_buffer) + BctPubkOffset);
         std::memcpy(dst_pubk, src_pubk, BctPubkSize);
+
         return ResultSuccess();
     }
 

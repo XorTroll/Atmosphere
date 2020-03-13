@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -24,34 +24,40 @@ namespace ams::util::ini {
 
     namespace {
 
-        struct FsFileContext {
-            FsFile *f;
-            size_t offset;
-            size_t num_left;
+        struct FileContext {
+            fs::FileHandle file;
+            s64 offset;
+            s64 num_left;
 
-            explicit FsFileContext(FsFile *f) : f(f), offset(0) {
-                s64 size;
-                R_ASSERT(fsFileGetSize(this->f, &size));
-                this->num_left = size_t(size);
+            explicit FileContext(fs::FileHandle f) : file(f), offset(0) {
+                R_ABORT_UNLESS(fs::GetFileSize(std::addressof(this->num_left), this->file));
             }
         };
 
-        char *ini_reader_fs_file(char *str, int num, void *stream) {
-            FsFileContext *ctx = reinterpret_cast<FsFileContext *>(stream);
+        struct IFileContext {
+            fs::fsa::IFile *file;
+            s64 offset;
+            s64 num_left;
+
+            explicit IFileContext(fs::fsa::IFile *f) : file(f), offset(0) {
+                R_ABORT_UNLESS(file->GetSize(std::addressof(this->num_left)));
+            }
+        };
+
+        char *ini_reader_file_handle(char *str, int num, void *stream) {
+            FileContext *ctx = static_cast<FileContext *>(stream);
 
             if (ctx->num_left == 0 || num < 2) {
                 return nullptr;
             }
 
             /* Read as many bytes as we can. */
-            size_t try_read = std::min(size_t(num - 1), ctx->num_left);
-            size_t actually_read;
-            R_ASSERT(fsFileRead(ctx->f, ctx->offset, str, try_read, FsReadOption_None, &actually_read));
-            AMS_ASSERT(actually_read == try_read);
+            s64 cur_read = std::min<s64>(num - 1, ctx->num_left);
+            R_ABORT_UNLESS(fs::ReadFile(ctx->file, ctx->offset, str, cur_read, fs::ReadOption()));
 
             /* Only "read" up to the first \n. */
-            size_t offset = actually_read;
-            for (size_t i = 0; i < actually_read; i++) {
+            size_t offset = cur_read;
+            for (auto i = 0; i < cur_read; i++) {
                 if (str[i] == '\n') {
                     offset = i + 1;
                     break;
@@ -62,7 +68,39 @@ namespace ams::util::ini {
             str[offset] = '\0';
 
             /* Update context. */
-            ctx->offset += offset;
+            ctx->offset   += offset;
+            ctx->num_left -= offset;
+
+            return str;
+        }
+
+        char *ini_reader_ifile(char *str, int num, void *stream) {
+            IFileContext *ctx = static_cast<IFileContext *>(stream);
+
+            if (ctx->num_left == 0 || num < 2) {
+                return nullptr;
+            }
+
+            /* Read as many bytes as we can. */
+            s64 cur_read = std::min<s64>(num - 1, ctx->num_left);
+            size_t read;
+            R_ABORT_UNLESS(ctx->file->Read(std::addressof(read), ctx->offset, str, cur_read, fs::ReadOption()));
+            AMS_ABORT_UNLESS(static_cast<s64>(read) == cur_read);
+
+            /* Only "read" up to the first \n. */
+            size_t offset = cur_read;
+            for (auto i = 0; i < cur_read; i++) {
+                if (str[i] == '\n') {
+                    offset = i + 1;
+                    break;
+                }
+            }
+
+            /* Ensure null termination. */
+            str[offset] = '\0';
+
+            /* Update context. */
+            ctx->offset   += offset;
             ctx->num_left -= offset;
 
             return str;
@@ -75,17 +113,14 @@ namespace ams::util::ini {
         return ini_parse_string(ini_str, h, user_ctx);
     }
 
-    int ParseFile(FILE *f, void *user_ctx, Handler h) {
-        return ini_parse_file(f, h, user_ctx);
+    int ParseFile(fs::FileHandle file, void *user_ctx, Handler h) {
+        FileContext ctx(file);
+        return ini_parse_stream(ini_reader_file_handle, &ctx, h, user_ctx);
     }
 
-    int ParseFile(FsFile *f, void *user_ctx, Handler h) {
-        FsFileContext ctx(f);
-        return ini_parse_stream(ini_reader_fs_file, &ctx, h, user_ctx);
-    }
-
-    int ParseFile(const char *path, void *user_ctx, Handler h) {
-        return ini_parse(path, h, user_ctx);
+    int ParseFile(fs::fsa::IFile *file, void *user_ctx, Handler h) {
+        IFileContext ctx(file);
+        return ini_parse_stream(ini_reader_ifile, &ctx, h, user_ctx);
     }
 
 }

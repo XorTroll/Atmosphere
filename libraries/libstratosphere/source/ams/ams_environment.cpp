@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -37,8 +37,8 @@ namespace ams {
     extern ncm::ProgramId CurrentProgramId;
 
     void WEAK_SYMBOL ExceptionHandler(FatalErrorContext *ctx) {
-        R_ASSERT(amsBpcInitialize());
-        R_ASSERT(amsBpcRebootToFatalError(ctx));
+        R_ABORT_UNLESS(amsBpcInitialize());
+        R_ABORT_UNLESS(amsBpcRebootToFatalError(ctx));
         while (1) { /* ... */ }
     }
 
@@ -119,6 +119,9 @@ namespace ams {
                     ams_ctx.stack_dump_size = 0;
                 }
             }
+
+            /* Grab 0x100 of tls. */
+            std::memcpy(ams_ctx.tls, armGetTls(), sizeof(ams_ctx.tls));
         }
 
         /* Just call the user exception handler. */

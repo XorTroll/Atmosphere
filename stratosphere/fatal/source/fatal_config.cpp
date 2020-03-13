@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -25,7 +25,7 @@ namespace ams::fatal::srv {
         /* Event creator. */
         Handle GetFatalDirtyEventReadableHandle() {
             Event evt;
-            R_ASSERT(setsysBindFatalDirtyFlagEvent(&evt));
+            R_ABORT_UNLESS(setsysBindFatalDirtyFlagEvent(&evt));
             return evt.revent;
         }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -18,7 +18,7 @@
 namespace ams::os {
 
     Result InterruptEvent::Initialize(u32 interrupt_id, bool autoclear) {
-        AMS_ASSERT(!this->is_initialized);
+        AMS_ABORT_UNLESS(!this->is_initialized);
         this->auto_clear = autoclear;
 
         const auto type = this->auto_clear ? svc::InterruptType_Edge : svc::InterruptType_Level;
@@ -29,43 +29,43 @@ namespace ams::os {
     }
 
     void InterruptEvent::Finalize() {
-        AMS_ASSERT(this->is_initialized);
-        R_ASSERT(svcCloseHandle(this->handle.Move()));
+        AMS_ABORT_UNLESS(this->is_initialized);
+        R_ABORT_UNLESS(svcCloseHandle(this->handle.Move()));
         this->auto_clear = true;
         this->is_initialized = false;
     }
 
     InterruptEvent::InterruptEvent(u32 interrupt_id, bool autoclear) {
         this->is_initialized = false;
-        R_ASSERT(this->Initialize(interrupt_id, autoclear));
+        R_ABORT_UNLESS(this->Initialize(interrupt_id, autoclear));
     }
 
     void InterruptEvent::Reset() {
-        R_ASSERT(svcClearEvent(this->handle.Get()));
+        R_ABORT_UNLESS(svcClearEvent(this->handle.Get()));
     }
 
     void InterruptEvent::Wait() {
-        AMS_ASSERT(this->is_initialized);
+        AMS_ABORT_UNLESS(this->is_initialized);
 
         while (true) {
             /* Continuously wait, until success. */
             R_TRY_CATCH(svcWaitSynchronizationSingle(this->handle.Get(), U64_MAX)) {
                 R_CATCH(svc::ResultCancelled) { continue; }
-            } R_END_TRY_CATCH_WITH_ASSERT;
+            } R_END_TRY_CATCH_WITH_ABORT_UNLESS;
 
             /* Clear, if we must. */
             if (this->auto_clear) {
                 R_TRY_CATCH(svcResetSignal(this->handle.Get())) {
                     /* Some other thread might have caught this before we did. */
                     R_CATCH(svc::ResultInvalidState) { continue; }
-                } R_END_TRY_CATCH_WITH_ASSERT;
+                } R_END_TRY_CATCH_WITH_ABORT_UNLESS;
             }
             return;
         }
     }
 
     bool InterruptEvent::TryWait() {
-        AMS_ASSERT(this->is_initialized);
+        AMS_ABORT_UNLESS(this->is_initialized);
 
         if (this->auto_clear) {
             /* Auto-clear. Just try to reset. */
@@ -77,7 +77,7 @@ namespace ams::os {
                 R_TRY_CATCH(svcWaitSynchronizationSingle(this->handle.Get(), 0)) {
                     R_CATCH(svc::ResultTimedOut) { return false; }
                     R_CATCH(svc::ResultCancelled) { continue; }
-                } R_END_TRY_CATCH_WITH_ASSERT;
+                } R_END_TRY_CATCH_WITH_ABORT_UNLESS;
 
                 /* We succeeded, so we're signaled. */
                 return true;
@@ -86,7 +86,7 @@ namespace ams::os {
     }
 
     bool InterruptEvent::TimedWait(u64 ns) {
-        AMS_ASSERT(this->is_initialized);
+        AMS_ABORT_UNLESS(this->is_initialized);
 
         TimeoutHelper timeout_helper(ns);
         while (true) {
@@ -94,14 +94,14 @@ namespace ams::os {
             R_TRY_CATCH(svcWaitSynchronizationSingle(this->handle.Get(), timeout_helper.NsUntilTimeout())) {
                 R_CATCH(svc::ResultTimedOut) { return false; }
                 R_CATCH(svc::ResultCancelled) { continue; }
-            } R_END_TRY_CATCH_WITH_ASSERT;
+            } R_END_TRY_CATCH_WITH_ABORT_UNLESS;
 
             /* Clear, if we must. */
             if (this->auto_clear) {
                 R_TRY_CATCH(svcResetSignal(this->handle.Get())) {
                     /* Some other thread might have caught this before we did. */
                     R_CATCH(svc::ResultInvalidState) { continue; }
-                } R_END_TRY_CATCH_WITH_ASSERT;
+                } R_END_TRY_CATCH_WITH_ABORT_UNLESS;
             }
 
             return true;

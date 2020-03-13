@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -29,7 +29,7 @@ namespace ams::sm::impl {
     Result DoWithUserSession(F f) {
         std::scoped_lock<os::RecursiveMutex &> lk(GetUserSessionMutex());
         {
-            R_ASSERT(smInitialize());
+            R_ABORT_UNLESS(smInitialize());
             ON_SCOPE_EXIT { smExit(); };
 
             return f();
@@ -40,7 +40,7 @@ namespace ams::sm::impl {
     Result DoWithMitmAcknowledgementSession(F f) {
         std::scoped_lock<os::RecursiveMutex &> lk(GetMitmAcknowledgementSessionMutex());
         {
-            R_ASSERT(smAtmosphereMitmInitialize());
+            R_ABORT_UNLESS(smAtmosphereMitmInitialize());
             ON_SCOPE_EXIT { smAtmosphereMitmExit(); };
 
             return f();
@@ -52,7 +52,7 @@ namespace ams::sm::impl {
         Service srv;
         {
             std::scoped_lock<os::RecursiveMutex &> lk(GetPerThreadSessionMutex());
-            R_ASSERT(smAtmosphereOpenSession(&srv));
+            R_ABORT_UNLESS(smAtmosphereOpenSession(&srv));
         }
         {
             ON_SCOPE_EXIT { smAtmosphereCloseSession(&srv); };

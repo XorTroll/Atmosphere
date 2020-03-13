@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -45,11 +45,36 @@ typedef volatile s32 vs32;   ///<  32-bit volatile signed integer.
 typedef volatile s64 vs64;   ///<  64-bit volatile signed integer.
 typedef volatile s128 vs128; ///< 128-bit volatile signed integer.
 
-typedef u32 Result;                 ///< Function error code result type.
+typedef u32 Result;          ///< Function error code result type.
 
 /// Creates a bitmask from a bit number.
 #ifndef BIT
 #define BIT(n) (1U<<(n))
+#endif
+
+/// Creates a bitmask from a bit number (long).
+#ifndef BITL
+#define BITL(n) (1UL<<(n))
+#endif
+
+/// Creates a bitmask representing the n least significant bits.
+#ifndef MASK
+#define MASK(n) (BIT(n) - 1U)
+#endif
+
+/// Creates a bitmask representing the n least significant bits (long).
+#ifndef MASKL
+#define MASKL(n) (BITL(n) - 1UL)
+#endif
+
+/// Creates a bitmask for bit range extraction.
+#ifndef MASK2
+#define MASK2(a,b) (MASK((a) + 1) & ~MASK(b))
+#endif
+
+/// Creates a bitmask for bit range extraction (long).
+#ifndef MASK2L
+#define MASK2L(a,b) (MASKL((a) + 1) & ~MASKL(b))
 #endif
 
 /// Marks a function as not returning, for the purposes of compiler optimization.

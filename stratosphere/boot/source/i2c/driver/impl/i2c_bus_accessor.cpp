@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -25,7 +25,7 @@ namespace ams::i2c::driver::impl {
 
         /* Ensure we're good if this isn't our first session. */
         if (this->open_sessions > 1) {
-            AMS_ASSERT(this->speed_mode == speed_mode);
+            AMS_ABORT_UNLESS(this->speed_mode == speed_mode);
             return;
         }
 
@@ -240,8 +240,8 @@ namespace ams::i2c::driver::impl {
             0x46, 0x74, 0x7C, 0x98, 0x55, 0x5F
         };
         const auto index = ConvertToIndex(bus);
-        AMS_ASSERT(index < util::size(s_interrupts));
-        R_ASSERT(this->interrupt_event.Initialize(s_interrupts[index], false));
+        AMS_ABORT_UNLESS(index < util::size(s_interrupts));
+        R_ABORT_UNLESS(this->interrupt_event.Initialize(s_interrupts[index], false));
     }
 
     void BusAccessor::SetClock(SpeedMode speed_mode) {
@@ -293,17 +293,17 @@ namespace ams::i2c::driver::impl {
         reg::Read(&this->i2c_registers->I2C_I2C_CNFG_0);
 
         if (this->pcv_module != PcvModule_I2C5) {
-            R_ASSERT(pcv::SetReset(this->pcv_module, true));
-            R_ASSERT(pcv::SetClockRate(this->pcv_module, (408'000'000) / (src_div + 1)));
-            R_ASSERT(pcv::SetReset(this->pcv_module, false));
+            R_ABORT_UNLESS(pcv::SetReset(this->pcv_module, true));
+            R_ABORT_UNLESS(pcv::SetClockRate(this->pcv_module, (408'000'000) / (src_div + 1)));
+            R_ABORT_UNLESS(pcv::SetReset(this->pcv_module, false));
         }
     }
 
     void BusAccessor::ResetController() const {
         if (this->pcv_module != PcvModule_I2C5) {
-            R_ASSERT(pcv::SetReset(this->pcv_module, true));
-            R_ASSERT(pcv::SetClockRate(this->pcv_module, 81'600'000));
-            R_ASSERT(pcv::SetReset(this->pcv_module, false));
+            R_ABORT_UNLESS(pcv::SetReset(this->pcv_module, true));
+            R_ABORT_UNLESS(pcv::SetClockRate(this->pcv_module, 81'600'000));
+            R_ABORT_UNLESS(pcv::SetReset(this->pcv_module, false));
         }
     }
 
@@ -362,7 +362,7 @@ namespace ams::i2c::driver::impl {
     }
 
     void BusAccessor::DisableClock() {
-        R_ASSERT(pcv::SetClockEnabled(this->pcv_module, false));
+        R_ABORT_UNLESS(pcv::SetClockEnabled(this->pcv_module, false));
     }
 
     void BusAccessor::SetPacketMode() {
@@ -379,7 +379,8 @@ namespace ams::i2c::driver::impl {
 
         /* Wait for flush to finish, check every ms for 5 ms. */
         for (size_t i = 0; i < 5; i++) {
-            R_UNLESS((reg::Read(&this->i2c_registers->I2C_FIFO_CONTROL_0) & 3), ResultSuccess());
+            const bool flush_done = (reg::Read(&this->i2c_registers->I2C_FIFO_CONTROL_0) & 3) == 0;
+            R_SUCCEED_IF(flush_done);
             svcSleepThread(1'000'000ul);
         }
 
@@ -413,12 +414,13 @@ namespace ams::i2c::driver::impl {
                 this->SetPacketMode();
                 this->FlushFifos();
             }
-        } R_END_TRY_CATCH_WITH_ASSERT;
+        } R_END_TRY_CATCH_WITH_ABORT_UNLESS;
     }
 
     Result BusAccessor::GetAndHandleTransactionResult() {
         const auto transaction_result = this->GetTransactionResult();
-        R_UNLESS(R_FAILED(transaction_result), ResultSuccess());
+        R_SUCCEED_IF(R_SUCCEEDED(transaction_result));
+
         this->HandleTransactionResult(transaction_result);
         this->ClearInterruptMask();
         this->interrupt_event.Reset();

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -13,15 +13,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 #pragma once
-#include "includes.hpp"
+#include <vapours/includes.hpp>
 
 /* Any broadly useful language defines should go here. */
-
-#define AMS_ASSERT(expr) do { if (!(expr)) { std::abort(); } } while (0)
-
-#define AMS_UNREACHABLE_DEFAULT_CASE() default: std::abort()
 
 #define NON_COPYABLE(cls) \
     cls(const cls&) = delete; \
@@ -34,10 +29,14 @@
 #define ALIGNED(algn) __attribute__((aligned(algn)))
 #define NORETURN      __attribute__((noreturn))
 #define WEAK_SYMBOL   __attribute__((weak))
+#define ALWAYS_INLINE_LAMBDA __attribute__((always_inline))
 #define ALWAYS_INLINE inline __attribute__((always_inline))
 #define NOINLINE      __attribute__((noinline))
 
 #define CONST_FOLD(x) (__builtin_constant_p(x) ? (x) : (x))
+
+#define WRAP_TEMPLATE_CONSTANT(...) ([] { using U = union { static constexpr auto GetValue() { return __VA_ARGS__; } }; return U{}; }())
+#define UNWRAP_TEMPLATE_CONSTANT(tpnm) (tpnm::GetValue())
 
 #define CONCATENATE_IMPL(S1, s2) s1##s2
 #define CONCATENATE(s1, s2) CONCATENATE_IMPL(s1, s2)

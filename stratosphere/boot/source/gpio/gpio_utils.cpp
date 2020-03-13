@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -33,7 +33,7 @@ namespace ams::gpio {
 
         /* Helpers. */
         inline u32 GetPadDescriptor(u32 gpio_pad_name) {
-            AMS_ASSERT(gpio_pad_name < PadNameMax);
+            AMS_ABORT_UNLESS(gpio_pad_name < PadNameMax);
             return Map[gpio_pad_name];
         }
 

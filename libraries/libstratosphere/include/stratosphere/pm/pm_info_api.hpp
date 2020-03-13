@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -16,8 +16,11 @@
 
 #pragma once
 
-#include "pm_types.hpp"
-#include "../ncm/ncm_types.hpp"
+#include <stratosphere/os.hpp>
+#include <stratosphere/pm/pm_types.hpp>
+#include <stratosphere/ncm/ncm_ids.hpp>
+#include <stratosphere/ncm/ncm_program_location.hpp>
+#include <stratosphere/cfg/cfg_types.hpp>
 
 namespace ams::pm::info {
 

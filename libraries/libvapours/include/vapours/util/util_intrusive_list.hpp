@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -15,7 +15,9 @@
  */
 
 #pragma once
-#include "util_parent_of_member.hpp"
+#include <vapours/common.hpp>
+#include <vapours/assert.hpp>
+#include <vapours/util/util_parent_of_member.hpp>
 
 namespace ams::util {
 
@@ -34,12 +36,9 @@ namespace ams::util {
             IntrusiveListNode *prev;
             IntrusiveListNode *next;
         public:
-            IntrusiveListNode() {
-                this->prev = this;
-                this->next = this;
-            }
+            constexpr IntrusiveListNode() : prev(this), next(this) { /* ... */ }
 
-            bool IsLinked() const {
+            constexpr bool IsLinked() const {
                 return this->next != this;
             }
         private:
@@ -102,6 +101,7 @@ namespace ams::util {
                 return this->next;
             }
     };
+    static_assert(std::is_literal_type<IntrusiveListNode>::value);
 
     namespace impl {
 
@@ -185,7 +185,7 @@ namespace ams::util {
                         }
                 };
             public:
-                IntrusiveListImpl() : root_node() { /* ... */ }
+                constexpr IntrusiveListImpl() : root_node() { /* ... */ }
 
                 /* Iterator accessors. */
                 iterator begin() {
@@ -276,7 +276,7 @@ namespace ams::util {
                     splice_impl(pos, first, last);
                 }
 
-                iterator erase(const iterator pos) {
+                iterator erase(const_iterator pos) {
                     if (pos == this->end()) {
                         return this->end();
                     }
@@ -407,7 +407,7 @@ namespace ams::util {
                 return Traits::GetParent(node);
             }
         public:
-            IntrusiveList() : impl() { /* ... */ }
+            constexpr IntrusiveList() : impl() { /* ... */ }
 
             /* Iterator accessors. */
             iterator begin() {
@@ -529,7 +529,7 @@ namespace ams::util {
                 this->impl.splice(pos.GetImplIterator(), o.impl, first.GetImplIterator(), last.GetImplIterator());
             }
 
-            iterator erase(const iterator pos) {
+            iterator erase(const_iterator pos) {
                 return iterator(this->impl.erase(pos.GetImplIterator()));
             }
 
@@ -557,11 +557,46 @@ namespace ams::util {
             }
 
             static constexpr Derived &GetParent(IntrusiveListNode &node) {
-                return static_cast<Derived &>(util::GetParentReference<Member>(&node));
+                return util::GetParentReference<Member, Derived>(&node);
             }
 
             static constexpr Derived const &GetParent(IntrusiveListNode const &node) {
-                return static_cast<const Derived &>(util::GetParentReference<Member>(&node));
+                return util::GetParentReference<Member, Derived>(&node);
+            }
+        private:
+            static constexpr TYPED_STORAGE(Derived) DerivedStorage = {};
+            static_assert(std::addressof(GetParent(GetNode(GetReference(DerivedStorage)))) == GetPointer(DerivedStorage));
+    };
+
+    template<auto T, class Derived = util::impl::GetParentType<T>>
+    class IntrusiveListMemberTraitsDeferredAssert;
+
+    template<class Parent, IntrusiveListNode Parent::*Member, class Derived>
+    class IntrusiveListMemberTraitsDeferredAssert<Member, Derived> {
+        public:
+            using ListType = IntrusiveList<Derived, IntrusiveListMemberTraitsDeferredAssert>;
+
+            static constexpr bool IsValid() {
+                TYPED_STORAGE(Derived) DerivedStorage = {};
+                return std::addressof(GetParent(GetNode(GetReference(DerivedStorage)))) == GetPointer(DerivedStorage);
+            }
+        private:
+            friend class IntrusiveList<Derived, IntrusiveListMemberTraitsDeferredAssert>;
+
+            static constexpr IntrusiveListNode &GetNode(Derived &parent) {
+                return parent.*Member;
+            }
+
+            static constexpr IntrusiveListNode const &GetNode(Derived const &parent) {
+                return parent.*Member;
+            }
+
+            static constexpr Derived &GetParent(IntrusiveListNode &node) {
+                return util::GetParentReference<Member, Derived>(&node);
+            }
+
+            static constexpr Derived const &GetParent(IntrusiveListNode const &node) {
+                return util::GetParentReference<Member, Derived>(&node);
             }
     };
 

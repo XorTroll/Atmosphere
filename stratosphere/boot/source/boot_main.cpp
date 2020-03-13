@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -52,7 +52,7 @@ extern "C" {
 
 namespace ams {
 
-    ncm::ProgramId CurrentProgramId = ncm::ProgramId::Boot;
+    ncm::ProgramId CurrentProgramId = ncm::SystemProgramId::Boot;
 
     void ExceptionHandler(FatalErrorContext *ctx) {
         /* We're boot sysmodule, so manually reboot to fatal error. */
@@ -90,9 +90,9 @@ void __appInit(void) {
 
     /* Initialize services we need (TODO: NCM) */
     sm::DoWithSession([&]() {
-        R_ASSERT(fsInitialize());
-        R_ASSERT(splInitialize());
-        R_ASSERT(pmshellInitialize());
+        R_ABORT_UNLESS(fsInitialize());
+        R_ABORT_UNLESS(splInitialize());
+        R_ABORT_UNLESS(pmshellInitialize());
     });
 
     ams::CheckApiVersion();
@@ -100,7 +100,6 @@ void __appInit(void) {
 
 void __appExit(void) {
     /* Cleanup services. */
-    fsdevUnmountAll();
     pmshellExit();
     splExit();
     fsExit();
@@ -121,7 +120,7 @@ int main(int argc, char **argv)
     boot::DetectBootReason();
 
     const auto hw_type = spl::GetHardwareType();
-    if (hw_type != spl::HardwareType::Copper) {
+    if (hw_type != spl::HardwareType::Copper && hw_type != spl::HardwareType::Calcio) {
         /* Display splash screen for two seconds. */
         boot::ShowSplashScreen();
 
@@ -136,7 +135,7 @@ int main(int argc, char **argv)
     boot::SetInitialWakePinConfiguration();
 
     /* Configure output clock. */
-    if (hw_type != spl::HardwareType::Copper) {
+    if (hw_type != spl::HardwareType::Copper && hw_type != spl::HardwareType::Calcio) {
         boot::SetInitialClockConfiguration();
     }
 
@@ -147,7 +146,7 @@ int main(int argc, char **argv)
     boot::CheckAndRepairBootImages();
 
     /* Tell PM to start boot2. */
-    R_ASSERT(pmshellNotifyBootFinished());
+    R_ABORT_UNLESS(pmshellNotifyBootFinished());
 
     return 0;
 }

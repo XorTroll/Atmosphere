@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -13,7 +13,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 #pragma once
 #include <vapours.hpp>
 
@@ -39,7 +38,7 @@ namespace ams::kvdb {
             }
 
             AutoBuffer& operator=(AutoBuffer &&rhs) {
-                rhs.Swap(*this);
+                AutoBuffer(std::move(rhs)).Swap(*this);
                 return *this;
             }
 
@@ -66,13 +65,12 @@ namespace ams::kvdb {
 
             Result Initialize(size_t size) {
                 /* Check that we're not already initialized. */
-                AMS_ASSERT(this->buffer == nullptr);
+                AMS_ABORT_UNLESS(this->buffer == nullptr);
 
                 /* Allocate a buffer. */
                 this->buffer = static_cast<u8 *>(std::malloc(size));
-                if (this->buffer == nullptr) {
-                    return ResultAllocationFailed();
-                }
+                R_UNLESS(this->buffer != nullptr, ResultAllocationFailed());
+
                 this->size = size;
                 return ResultSuccess();
             }

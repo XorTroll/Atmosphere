@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -50,7 +50,7 @@ namespace ams::os {
 
     NX_INLINE os::ProcessId GetProcessId(::Handle process_handle) {
         os::ProcessId process_id;
-        R_ASSERT(TryGetProcessId(&process_id, process_handle));
+        R_ABORT_UNLESS(TryGetProcessId(&process_id, process_handle));
         return process_id;
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -73,7 +73,7 @@ namespace ams::map {
                     R_UNLESS(cur_base != address_space.alias_end, svc::ResultOutOfMemory());
                     cur_base = address_space.alias_end;
                 } else {
-                    R_ASSERT(svcQueryMemory(&mem_info, &page_info, cur_base));
+                    R_ABORT_UNLESS(svcQueryMemory(&mem_info, &page_info, cur_base));
                     if (mem_info.type == 0 && mem_info.addr - cur_base + mem_info.size >= size) {
                         *out_address = cur_base;
                         return ResultSuccess();
@@ -100,7 +100,7 @@ namespace ams::map {
 
                 MappedCodeMemory tmp_mcm(process_handle, try_address, base_address, size);
                 R_TRY_CATCH(tmp_mcm.GetResult()) {
-                    R_CATCH(svc::ResultInvalidCurrentMemoryState) { continue; }
+                    R_CATCH(svc::ResultInvalidCurrentMemory) { continue; }
                 } R_END_TRY_CATCH;
 
                 if (!CanAddGuardRegionsInProcess(process_handle, try_address, size)) {
@@ -136,7 +136,7 @@ namespace ams::map {
 
                 MappedCodeMemory tmp_mcm(process_handle, try_address, base_address, size);
                 R_TRY_CATCH(tmp_mcm.GetResult()) {
-                    R_CATCH(svc::ResultInvalidCurrentMemoryState) { continue; }
+                    R_CATCH(svc::ResultInvalidCurrentMemory) { continue; }
                 } R_END_TRY_CATCH;
 
                 if (!CanAddGuardRegionsInProcess(process_handle, try_address, size)) {
@@ -205,9 +205,9 @@ namespace ams::map {
 
         /* Nintendo doesn't validate SVC return values at all. */
         /* TODO: Should we allow these to fail? */
-        R_ASSERT(svcQueryProcessMemory(&mem_info, &page_info, process_handle, address - 1));
+        R_ABORT_UNLESS(svcQueryProcessMemory(&mem_info, &page_info, process_handle, address - 1));
         if (mem_info.type == MemType_Unmapped && address - GuardRegionSize >= mem_info.addr) {
-            R_ASSERT(svcQueryProcessMemory(&mem_info, &page_info, process_handle, address + size));
+            R_ABORT_UNLESS(svcQueryProcessMemory(&mem_info, &page_info, process_handle, address + size));
             return mem_info.type == MemType_Unmapped && address + size + GuardRegionSize <= mem_info.addr + mem_info.size;
         }
 

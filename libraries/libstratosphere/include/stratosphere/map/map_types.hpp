@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -53,7 +53,7 @@ namespace ams::map {
 
             ~AutoCloseMap() {
                 if (this->process_handle != INVALID_HANDLE && R_SUCCEEDED(this->result)) {
-                    R_ASSERT(svcUnmapProcessMemory(this->mapped_address, this->process_handle, this->base_address, this->size));
+                    R_ABORT_UNLESS(svcUnmapProcessMemory(this->mapped_address, this->process_handle, this->base_address, this->size));
                 }
             }
 
@@ -88,7 +88,7 @@ namespace ams::map {
 
             ~MappedCodeMemory() {
                 if (this->process_handle != INVALID_HANDLE && R_SUCCEEDED(this->result) && this->size > 0) {
-                    R_ASSERT(svcUnmapProcessCodeMemory(this->process_handle, this->dst_address, this->src_address, this->size));
+                    R_ABORT_UNLESS(svcUnmapProcessCodeMemory(this->process_handle, this->dst_address, this->src_address, this->size));
                 }
             }
 

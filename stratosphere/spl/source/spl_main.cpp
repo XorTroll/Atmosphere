@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -46,7 +46,7 @@ extern "C" {
 
 namespace ams {
 
-    ncm::ProgramId CurrentProgramId = ncm::ProgramId::Spl;
+    ncm::ProgramId CurrentProgramId = ncm::SystemProgramId::Spl;
 
     namespace result {
 
@@ -133,18 +133,18 @@ int main(int argc, char **argv)
     spl::impl::Initialize();
 
     /* Create services. */
-    R_ASSERT(g_server_manager.RegisterServer<spl::RandomService>(RandomServiceName, RandomMaxSessions));
+    R_ABORT_UNLESS(g_server_manager.RegisterServer<spl::RandomService>(RandomServiceName, RandomMaxSessions));
     if (hos::GetVersion() >= hos::Version_400) {
-        R_ASSERT(g_server_manager.RegisterServer<spl::GeneralService>(GeneralServiceName, GeneralMaxSessions));
-        R_ASSERT(g_server_manager.RegisterServer<spl::CryptoService>(CryptoServiceName, CryptoMaxSessions));
-        R_ASSERT(g_server_manager.RegisterServer<spl::SslService>(SslServiceName, SslMaxSessions));
-        R_ASSERT(g_server_manager.RegisterServer<spl::EsService>(EsServiceName, EsMaxSessions));
-        R_ASSERT(g_server_manager.RegisterServer<spl::FsService>(FsServiceName, FsMaxSessions));
+        R_ABORT_UNLESS(g_server_manager.RegisterServer<spl::GeneralService>(GeneralServiceName, GeneralMaxSessions));
+        R_ABORT_UNLESS(g_server_manager.RegisterServer<spl::CryptoService>(CryptoServiceName, CryptoMaxSessions));
+        R_ABORT_UNLESS(g_server_manager.RegisterServer<spl::SslService>(SslServiceName, SslMaxSessions));
+        R_ABORT_UNLESS(g_server_manager.RegisterServer<spl::EsService>(EsServiceName, EsMaxSessions));
+        R_ABORT_UNLESS(g_server_manager.RegisterServer<spl::FsService>(FsServiceName, FsMaxSessions));
         if (hos::GetVersion() >= hos::Version_500) {
-            R_ASSERT(g_server_manager.RegisterServer<spl::ManuService>(ManuServiceName, ManuMaxSessions));
+            R_ABORT_UNLESS(g_server_manager.RegisterServer<spl::ManuService>(ManuServiceName, ManuMaxSessions));
         }
     } else {
-        R_ASSERT(g_server_manager.RegisterServer<spl::DeprecatedService>(DeprecatedServiceName, DeprecatedMaxSessions));
+        R_ABORT_UNLESS(g_server_manager.RegisterServer<spl::DeprecatedService>(DeprecatedServiceName, DeprecatedMaxSessions));
     }
 
     /* Loop forever, servicing our services. */

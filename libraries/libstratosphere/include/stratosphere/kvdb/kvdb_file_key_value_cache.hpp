@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -13,9 +13,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include <sys/stat.h>
-#include "kvdb_bounded_string.hpp"
-#include "kvdb_file_key_value_store.hpp"
+#include <stratosphere/fs/fs_filesystem.hpp>
+#include <stratosphere/fs/fs_file.hpp>
+#include <stratosphere/kvdb/kvdb_bounded_string.hpp>
+#include <stratosphere/kvdb/kvdb_file_key_value_store.hpp>
 
 namespace ams::kvdb {
 
@@ -39,22 +40,22 @@ namespace ams::kvdb {
             public:
                 static Result CreateNewList(const char *path) {
                     /* Create new lru_list.dat. */
-                    R_TRY(fsdevCreateFile(path, FileSize, 0));
+                    R_TRY(fs::CreateFile(path, FileSize));
 
                     /* Open the file. */
-                    FILE *fp = fopen(path, "r+b");
-                    R_UNLESS(fp != nullptr, fsdevGetLastResult());
-                    ON_SCOPE_EXIT { fclose(fp); };
+                    fs::FileHandle file;
+                    R_TRY(fs::OpenFile(std::addressof(file), path, fs::OpenMode_Write));
+                    ON_SCOPE_EXIT { fs::CloseFile(file); };
 
                     /* Write new header with zero entries to the file. */
                     LruHeader new_header = { .entry_count = 0, };
-                    R_UNLESS(fwrite(&new_header, sizeof(new_header), 1, fp) == 1, fsdevGetLastResult());
+                    R_TRY(fs::WriteFile(file, 0, std::addressof(new_header), sizeof(new_header), fs::WriteOption::Flush));
 
                     return ResultSuccess();
                 }
             private:
                 void RemoveIndex(size_t i) {
-                    AMS_ASSERT(i < this->GetCount());
+                    AMS_ABORT_UNLESS(i < this->GetCount());
                     std::memmove(this->keys + i, this->keys + i + 1, sizeof(*this->keys) * (this->GetCount() - (i + 1)));
                     this->DecrementCount();
                 }
@@ -71,8 +72,8 @@ namespace ams::kvdb {
 
                 Result Initialize(const char *path, void *buf, size_t size) {
                     /* Only initialize once, and ensure we have sufficient memory. */
-                    AMS_ASSERT(this->keys == nullptr);
-                    AMS_ASSERT(size >= BufferSize);
+                    AMS_ABORT_UNLESS(this->keys == nullptr);
+                    AMS_ABORT_UNLESS(size >= BufferSize);
 
                     /* Setup member variables. */
                     this->keys = static_cast<Key *>(buf);
@@ -80,36 +81,33 @@ namespace ams::kvdb {
                     std::memset(this->keys, 0, BufferSize);
 
                     /* Open file. */
-                    FILE *fp = fopen(this->file_path, "rb");
-                    R_UNLESS(fp != nullptr, fsdevGetLastResult());
-                    ON_SCOPE_EXIT { fclose(fp); };
+                    fs::FileHandle file;
+                    R_TRY(fs::OpenFile(std::addressof(file), this->file_path, fs::OpenMode_Read));
+                    ON_SCOPE_EXIT { fs::CloseFile(file); };
 
                     /* Read header. */
-                    R_UNLESS(fread(&this->header, sizeof(this->header), 1, fp) == 1, fsdevGetLastResult());
+                    R_TRY(fs::ReadFile(file, 0, std::addressof(this->header), sizeof(this->header)));
 
                     /* Read entries. */
-                    const size_t count = this->GetCount();
-                    if (count > 0) {
-                        R_UNLESS(fread(this->keys, std::min(BufferSize, sizeof(Key) * count), 1, fp) == 1, fsdevGetLastResult());
-                    }
+                    R_TRY(fs::ReadFile(file, sizeof(this->header), this->keys, BufferSize));
 
                     return ResultSuccess();
                 }
 
                 Result Save() {
                     /* Open file. */
-                    FILE *fp = fopen(this->file_path, "r+b");
-                    R_UNLESS(fp != nullptr, fsdevGetLastResult());
-                    ON_SCOPE_EXIT { fclose(fp); };
+                    fs::FileHandle file;
+                    R_TRY(fs::OpenFile(std::addressof(file), this->file_path, fs::OpenMode_Read));
+                    ON_SCOPE_EXIT { fs::CloseFile(file); };
 
                     /* Write header. */
-                    R_UNLESS(fwrite(&this->header, sizeof(this->header), 1, fp) == 1, fsdevGetLastResult());
+                    R_TRY(fs::WriteFile(file, 0, std::addressof(this->header), sizeof(this->header), fs::WriteOption::None));
 
                     /* Write entries. */
-                    R_UNLESS(fwrite(this->keys, BufferSize, 1, fp) == 1, fsdevGetLastResult());
+                    R_TRY(fs::WriteFile(file, sizeof(this->header), this->keys, BufferSize, fs::WriteOption::None));
 
                     /* Flush. */
-                    fflush(fp);
+                    R_TRY(fs::FlushFile(file));
 
                     return ResultSuccess();
                 }
@@ -127,23 +125,23 @@ namespace ams::kvdb {
                 }
 
                 Key Get(size_t i) const {
-                    AMS_ASSERT(i < this->GetCount());
+                    AMS_ABORT_UNLESS(i < this->GetCount());
                     return this->keys[i];
                 }
 
                 Key Peek() const {
-                    AMS_ASSERT(!this->IsEmpty());
+                    AMS_ABORT_UNLESS(!this->IsEmpty());
                     return this->Get(0);
                 }
 
                 void Push(const Key &key) {
-                    AMS_ASSERT(!this->IsFull());
+                    AMS_ABORT_UNLESS(!this->IsFull());
                     this->keys[this->GetCount()] = key;
                     this->IncrementCount();
                 }
 
                 Key Pop() {
-                    AMS_ASSERT(!this->IsEmpty());
+                    AMS_ABORT_UNLESS(!this->IsEmpty());
                     this->RemoveIndex(0);
                 }
 
@@ -209,44 +207,37 @@ namespace ams::kvdb {
                 return Path::MakeFormat("%s/%s", dir, "kvs");
             }
 
-            static Result Exists(bool *out, const char *path, bool is_dir) {
+            static Result Exists(bool *out, const char *path, fs::DirectoryEntryType type) {
                 /* Set out to false initially. */
                 *out = false;
 
-                /* Check that the path exists, and that our entry type is correct. */
-                {
-                    struct stat st;
+                /* Try to get the entry type. */
+                fs::DirectoryEntryType entry_type;
+                R_TRY_CATCH(fs::GetEntryType(std::addressof(entry_type), path)) {
+                    /* If the path doesn't exist, nothing has gone wrong. */
+                    R_CONVERT(fs::ResultPathNotFound, ResultSuccess());
+                } R_END_TRY_CATCH;
 
-                    if (stat(path, &st) != 0) {
-                        R_TRY_CATCH(fsdevGetLastResult()) {
-                            /* If the path doesn't exist, nothing has gone wrong. */
-                            R_CONVERT(fs::ResultPathNotFound, ResultSuccess());
-                        } R_END_TRY_CATCH;
-                    }
+                /* Check that the entry type is correct. */
+                R_UNLESS(entry_type == type, ResultInvalidFilesystemState());
 
-                    if (is_dir) {
-                        R_UNLESS((S_ISDIR(st.st_mode)), ResultInvalidFilesystemState());
-                    } else {
-                        R_UNLESS((S_ISREG(st.st_mode)), ResultInvalidFilesystemState());
-                    }
-                }
-
+                /* The entry exists and is the correct type. */
                 *out = true;
                 return ResultSuccess();
             }
 
             static Result DirectoryExists(bool *out, const char *path) {
-                return Exists(out, path, true);
+                return Exists(out, path, fs::DirectoryEntryType_Directory);
             }
 
             static Result FileExists(bool *out, const char *path) {
-                return Exists(out, path, false);
+                return Exists(out, path, fs::DirectoryEntryType_File);
             }
         public:
             static Result CreateNewCache(const char *dir) {
                 /* Make a new key value store filesystem, and a new lru_list.dat. */
                 R_TRY(LeastRecentlyUsedList::CreateNewList(GetLeastRecentlyUsedListPath(dir)));
-                R_UNLESS(mkdir(GetFileKeyValueStorePath(dir), 0) == 0, fsdevGetLastResult());
+                R_TRY(fs::CreateDirectory(dir));
 
                 return ResultSuccess();
             }

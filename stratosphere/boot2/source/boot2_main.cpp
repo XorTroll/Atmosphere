@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -20,7 +20,6 @@ extern "C" {
 
     u32 __nx_applet_type = AppletType_None;
     u32 __nx_fs_num_sessions = 1;
-    u32 __nx_fsdev_direntry_cache_size = 1;
 
     #define INNER_HEAP_SIZE 0x2000
     size_t nx_inner_heap_size = INNER_HEAP_SIZE;
@@ -38,7 +37,7 @@ extern "C" {
 
 namespace ams {
 
-    ncm::ProgramId CurrentProgramId = ncm::ProgramId::Boot2;
+    ncm::ProgramId CurrentProgramId = ncm::SystemProgramId::Boot2;
 
     namespace result {
 
@@ -71,21 +70,22 @@ void __appInit(void) {
 
     /* Initialize services we need. */
     sm::DoWithSession([&]() {
-        R_ASSERT(fsInitialize());
-        R_ASSERT(pmbmInitialize());
-        R_ASSERT(pminfoInitialize());
-        R_ASSERT(pmshellInitialize());
-        R_ASSERT(setsysInitialize());
-        R_ASSERT(gpioInitialize());
+        R_ABORT_UNLESS(fsInitialize());
+        R_ABORT_UNLESS(pmbmInitialize());
+        R_ABORT_UNLESS(pminfoInitialize());
+        R_ABORT_UNLESS(pmshellInitialize());
+        R_ABORT_UNLESS(setsysInitialize());
+        R_ABORT_UNLESS(gpioInitialize());
     });
 
-    R_ASSERT(fsdevMountSdmc());
+    /* Mount the SD card. */
+    R_ABORT_UNLESS(fs::MountSdCard("sdmc"));
 
     ams::CheckApiVersion();
 }
 
 void __appExit(void) {
-    fsdevUnmountAll();
+    fs::Unmount("sdmc");
     gpioExit();
     setsysExit();
     pmshellExit();
@@ -96,6 +96,7 @@ void __appExit(void) {
 
 int main(int argc, char **argv)
 {
+    /* Launch all programs off of SYSTEM/the SD. */
     boot2::LaunchPostSdCardBootPrograms();
 }
 

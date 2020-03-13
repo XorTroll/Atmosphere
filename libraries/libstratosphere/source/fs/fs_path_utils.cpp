@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -25,7 +25,7 @@ namespace ams::fs {
             const char c = *(cur++);
 
             /* If terminated, we're done. */
-            R_UNLESS(c != StringTraits::NullTerminator, ResultSuccess());
+            R_SUCCEED_IF(PathTool::IsNullTerminator(c));
 
             /* TODO: Nintendo converts the path from utf-8 to utf-32, one character at a time. */
             /* We should do this. */

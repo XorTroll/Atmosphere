@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -13,7 +13,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 #pragma once
 #include <vapours.hpp>
 
@@ -28,7 +27,7 @@ namespace ams::kvdb {
         private:
             /* Utility. */
             static inline void CheckLength(size_t len) {
-                AMS_ASSERT(len < N);
+                AMS_ABORT_UNLESS(len < N);
             }
         public:
             /* Constructors. */
@@ -51,6 +50,7 @@ namespace ams::kvdb {
                 std::va_list args;
                 va_start(args, format);
                 CheckLength(std::vsnprintf(string.buffer, N, format, args));
+                string.buffer[N - 1] = 0;
                 va_end(args);
 
                 return string;
@@ -74,6 +74,7 @@ namespace ams::kvdb {
                 /* Ensure string can fit in our buffer. */
                 CheckLength(strnlen(s, N));
                 std::strncpy(this->buffer, s, N);
+                this->buffer[N - 1] = 0;
             }
 
             void SetFormat(const char *format, ...) __attribute__((format (printf, 2, 3))) {
@@ -109,8 +110,8 @@ namespace ams::kvdb {
             /* Substring utilities. */
             void GetSubstring(char *dst, size_t dst_size, size_t offset, size_t length) const {
                 /* Make sure output buffer can hold the substring. */
-                AMS_ASSERT(offset + length <= GetLength());
-                AMS_ASSERT(dst_size > length);
+                AMS_ABORT_UNLESS(offset + length <= GetLength());
+                AMS_ABORT_UNLESS(dst_size > length);
                 /* Copy substring to dst. */
                 std::strncpy(dst, this->buffer + offset, length);
                 dst[length] = 0;
