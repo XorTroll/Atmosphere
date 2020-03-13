@@ -42,7 +42,7 @@ namespace ams::mitm::fspusb {
         mitm::WaitInitialized();
         
         sm::DoWithSession([&]() {
-#ifdef FSP_USB_LOG
+#ifdef FSP_USB_DEBUG
             R_ASSERT(fsdevMountSdmc());
 #endif
             R_ASSERT(timeInitialize());
@@ -55,7 +55,7 @@ namespace ams::mitm::fspusb {
 
         impl::FinalizeManager();
         timeExit();
-#ifdef FSP_USB_LOG
+#ifdef FSP_USB_DEBUG
         fsdevUnmountAll();
 #endif
     }
