@@ -242,7 +242,7 @@ namespace ams::mitm::fspusb {
                 if (mode & fs::OpenMode_Write) {
                     openmode |= FA_WRITE;
                 }
-                if (mode & fs::OpenMode_Append) {
+                if (mode & fs::OpenMode_AllowAppend) {
                     openmode |= FA_OPEN_APPEND;
                 }
 
