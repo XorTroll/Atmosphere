@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -41,8 +41,8 @@ namespace ams::sf::cmif {
             ServerMessageRuntimeMetadata impl_metadata;
         public:
             DomainServiceObjectProcessor(ServerDomainBase *d, DomainObjectId *in_obj_ids, size_t num_in_objs) : domain(d), in_object_ids(in_obj_ids), num_in_objects(num_in_objs) {
-                AMS_ASSERT(this->domain != nullptr);
-                AMS_ASSERT(this->in_object_ids != nullptr);
+                AMS_ABORT_UNLESS(this->domain != nullptr);
+                AMS_ABORT_UNLESS(this->in_object_ids != nullptr);
                 this->impl_processor = nullptr;
                 this->out_object_ids = nullptr;
                 this->impl_metadata = {};
@@ -101,8 +101,6 @@ namespace ams::sf::cmif {
             static constexpr inline DomainServiceObjectDispatchTable s_CmifServiceDispatchTable{};
         private:
             virtual ServerDomainBase *GetServerDomain() = 0;
-        public:
-            /* TODO: Implement to use domain object processor. */
     };
 
     class MitmDomainServiceObject : public DomainServiceObject{};

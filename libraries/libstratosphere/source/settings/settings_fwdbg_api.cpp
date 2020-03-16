@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -22,13 +22,13 @@ namespace ams::settings::fwdbg {
 
     size_t WEAK_SYMBOL GetSettingsItemValueSize(const char *name, const char *key) {
         u64 size = 0;
-        R_ASSERT(setsysGetSettingsItemValueSize(name, key, &size));
+        R_ABORT_UNLESS(setsysGetSettingsItemValueSize(name, key, &size));
         return size;
     }
 
     size_t WEAK_SYMBOL GetSettingsItemValue(void *dst, size_t dst_size, const char *name, const char *key) {
         u64 size = 0;
-        R_ASSERT(setsysGetSettingsItemValue(name, key, dst, dst_size, &size));
+        R_ABORT_UNLESS(setsysGetSettingsItemValue(name, key, dst, dst_size, &size));
         return size;
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -25,17 +25,17 @@ namespace ams::hid {
 
         /* Helper. */
         void InitializeHid() {
-            R_ASSERT(smInitialize());
+            R_ABORT_UNLESS(smInitialize());
             ON_SCOPE_EXIT { smExit(); };
             {
-                R_ASSERT(hidInitialize());
+                R_ABORT_UNLESS(hidInitialize());
             }
         }
 
         Result EnsureHidInitialized() {
             if (!g_initialized_hid) {
                 if (!serviceIsActive(hidGetServiceSession())) {
-                    if (!pm::info::HasLaunchedProgram(ncm::ProgramId::Hid)) {
+                    if (!pm::info::HasLaunchedProgram(ncm::SystemProgramId::Hid)) {
                         return MAKERESULT(Module_Libnx, LibnxError_InitFail_HID);
                     }
                     InitializeHid();

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -23,7 +23,7 @@ namespace ams::sm {
     }
 
     void DmntService::AtmosphereListRecords(const sf::OutArray<ServiceRecord> &records, sf::Out<u64> out_count, u64 offset) {
-        R_ASSERT(impl::ListServiceRecords(records.GetPointer(), out_count.GetPointer(), offset, records.GetSize()));
+        R_ABORT_UNLESS(impl::ListServiceRecords(records.GetPointer(), out_count.GetPointer(), offset, records.GetSize()));
     }
 
     void DmntService::AtmosphereGetRecordSize(sf::Out<u64> record_size) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -22,7 +22,6 @@ extern "C" {
 
     u32 __nx_applet_type = AppletType_None;
     u32 __nx_fs_num_sessions = 1;
-    u32 __nx_fsdev_direntry_cache_size = 1;
 
     #define INNER_HEAP_SIZE 0x1000000
     size_t nx_inner_heap_size = INNER_HEAP_SIZE;
@@ -40,7 +39,7 @@ extern "C" {
 
 namespace ams {
 
-    ncm::ProgramId CurrentProgramId = ncm::ProgramId::AtmosphereMitm;
+    ncm::ProgramId CurrentProgramId = ncm::AtmosphereProgramId::Mitm;
 
     namespace result {
 
@@ -78,10 +77,10 @@ void __appInit(void) {
     hos::SetVersionForLibnx();
 
     sm::DoWithSession([&]() {
-        R_ASSERT(fsInitialize());
-        R_ASSERT(pmdmntInitialize());
-        R_ASSERT(pminfoInitialize());
-        R_ASSERT(splFsInitialize());
+        R_ABORT_UNLESS(fsInitialize());
+        R_ABORT_UNLESS(pmdmntInitialize());
+        R_ABORT_UNLESS(pminfoInitialize());
+        R_ABORT_UNLESS(splFsInitialize());
     });
 
     ams::CheckApiVersion();

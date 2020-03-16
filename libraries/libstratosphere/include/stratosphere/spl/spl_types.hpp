@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -65,7 +65,7 @@ namespace ams::spl {
 
         constexpr inline ::ams::Result ConvertResult(Result smc_result) {
             /* smc::Result::Success becomes ResultSuccess() directly. */
-            R_UNLESS(smc_result != Result::Success, ResultSuccess());
+            R_SUCCEED_IF(smc_result == smc::Result::Success);
 
             /* Convert to the list of known SecureMonitorErrors. */
             const auto converted = R_MAKE_NAMESPACE_RESULT(::ams::spl, static_cast<u32>(smc_result));
@@ -107,10 +107,11 @@ namespace ams::spl {
     }
 
     enum class HardwareType {
-        Icosa = 0,
-        Copper = 1,
-        Hoag = 2,
-        Iowa = 3,
+        Icosa   = 0,
+        Copper  = 1,
+        Hoag    = 2,
+        Iowa    = 3,
+        Calcio  = 4,
     };
 
     enum MemoryArrangement {

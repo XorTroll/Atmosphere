@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -49,7 +49,7 @@ namespace ams::dmnt {
 
         Result EnsureSdInitialized() {
             std::scoped_lock lk(g_sd_lock);
-            R_UNLESS(!g_sd_initialized, ResultSuccess());
+            R_SUCCEED_IF(g_sd_initialized);
 
             R_TRY(fsOpenSdCardFileSystem(&g_sd_fs));
             g_sd_initialized = true;

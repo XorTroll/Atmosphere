@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -16,8 +16,8 @@
 
 #pragma once
 #include <vapours.hpp>
-#include "../ncm/ncm_types.hpp"
-#include "../cfg/cfg_types.hpp"
+#include <stratosphere/ncm/ncm_ids.hpp>
+#include <stratosphere/cfg/cfg_types.hpp>
 
 namespace ams::sm {
 

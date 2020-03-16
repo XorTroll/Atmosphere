@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -59,7 +59,7 @@ namespace ams::mitm::ns {
                 /* We will mitm:
                  * - web applets, to facilitate hbl web browser launching.
                  */
-                return ncm::IsWebAppletProgramId(client_info.program_id);
+                return ncm::IsWebAppletId(client_info.program_id);
             }
         public:
             SF_MITM_SERVICE_OBJECT_CTOR(NsWebMitmService) { /* ... */ }

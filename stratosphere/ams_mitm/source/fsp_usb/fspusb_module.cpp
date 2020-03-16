@@ -42,16 +42,22 @@ namespace ams::mitm::fspusb {
         mitm::WaitInitialized();
         
         sm::DoWithSession([&]() {
-            R_ASSERT(impl::InitializeManager());
+#ifdef FSP_USB_DEBUG
+            R_ASSERT(fsdevMountSdmc());
+#endif
             R_ASSERT(timeInitialize());
+            R_ASSERT(impl::InitializeManager());
         });
 
         R_ASSERT(g_server_manager.RegisterServer<Service>(ServiceName, MaxSessions));
 
         g_server_manager.LoopProcess();
 
-        timeExit();
         impl::FinalizeManager();
+        timeExit();
+#ifdef FSP_USB_DEBUG
+        fsdevUnmountAll();
+#endif
     }
 
 }

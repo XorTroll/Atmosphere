@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -22,11 +22,11 @@ namespace ams::os::impl {
     class WaitableManagerImpl;
 
     class WaitableHolderBase {
+        private:
+            WaitableManagerImpl *manager = nullptr;
         public:
             util::IntrusiveListNode manager_node;
             util::IntrusiveListNode object_list_node;
-        private:
-            WaitableManagerImpl *manager = nullptr;
         public:
             /* Gets whether the held waitable is currently signaled. */
             virtual TriBool IsSignaled() const = 0;

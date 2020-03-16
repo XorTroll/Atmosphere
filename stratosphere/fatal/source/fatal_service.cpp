@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -39,8 +39,8 @@ namespace ams::fatal::srv {
             public:
                 ServiceContext() {
                     this->context.ClearState();
-                    R_ASSERT(eventCreate(&this->context.erpt_event, false));
-                    R_ASSERT(eventCreate(&this->context.battery_event, false));
+                    R_ABORT_UNLESS(eventCreate(&this->context.erpt_event, false));
+                    R_ABORT_UNLESS(eventCreate(&this->context.battery_event, false));
                     this->has_thrown = false;
                 }
 
@@ -64,8 +64,8 @@ namespace ams::fatal::srv {
 
         /* Throw implementation. */
         Result ServiceContext::ThrowFatalWithCpuContext(Result result, os::ProcessId process_id, FatalPolicy policy, const CpuContext &cpu_ctx) {
-            /* We don't support Error Report only fatals. */
-            R_UNLESS(policy != FatalPolicy_ErrorReport, ResultSuccess());
+            /* We don't support Error-Report-only fatals. */
+            R_SUCCEED_IF(policy == FatalPolicy_ErrorReport);
 
             /* Note that we've thrown fatal. */
             R_TRY(this->TrySetHasThrown());
@@ -83,7 +83,7 @@ namespace ams::fatal::srv {
 
             /* Get program id. */
             pm::info::GetProgramId(&this->context.program_id, process_id);
-            this->context.is_creport = (this->context.program_id == ncm::ProgramId::Creport);
+            this->context.is_creport = (this->context.program_id == ncm::SystemProgramId::Creport);
 
             if (!this->context.is_creport) {
                 /* On firmware version 2.0.0, use debugging SVCs to collect information. */

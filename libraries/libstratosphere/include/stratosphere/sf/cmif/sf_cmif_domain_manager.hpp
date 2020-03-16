@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -87,7 +87,7 @@ namespace ams::sf::cmif {
 
                     inline DomainObjectId GetId(Entry *e) {
                         const size_t index = e - this->entries;
-                        AMS_ASSERT(index < this->num_entries);
+                        AMS_ABORT_UNLESS(index < this->num_entries);
                         return DomainObjectId{ u32(index + 1) };
                     }
 

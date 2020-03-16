@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -281,8 +281,10 @@ uint32_t fuse_get_expected_fuse_version(uint32_t target_firmware) {
     if (target_firmware > ATMOSPHERE_TARGET_FIRMWARE_COUNT) {
         generic_panic();
     }
-
-    return expected_versions[target_firmware];
+    if (fuse_get_retail_type() != 0)
+        return expected_versions[target_firmware];
+    else
+        return (target_firmware > ATMOSPHERE_TARGET_FIRMWARE_200) ? 1 : 0;
 }
 
 /* Check for RCM bug patches. */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -62,10 +62,15 @@ namespace ams::sm {
             }
 
             Result Initialize() {
-                AMS_ASSERT(!this->has_initialized);
+                AMS_ABORT_UNLESS(!this->has_initialized);
 
                 sm::DoWithSession([&]() {
-                    this->result = Initializer();
+                    if constexpr (std::is_same<decltype(Initializer()), void>::value) {
+                        Initializer();
+                        this->result = ResultSuccess();
+                    } else {
+                        this->result = Initializer();
+                    }
                 });
 
                 this->has_initialized = R_SUCCEEDED(this->result);
@@ -73,7 +78,7 @@ namespace ams::sm {
             }
 
             void Finalize() {
-                AMS_ASSERT(this->has_initialized);
+                AMS_ABORT_UNLESS(this->has_initialized);
                 Finalizer();
                 this->has_initialized = false;
             }

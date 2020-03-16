@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -21,5 +21,13 @@ namespace ams::fs {
     constexpr inline size_t EntryNameLengthMax = 0x300;
 
     using DirectoryEntry = ::FsDirectoryEntry;
+
+    struct DirectoryHandle {
+        void *handle;
+    };
+
+    Result ReadDirectory(s64 *out_count, DirectoryEntry *out_entries, DirectoryHandle handle, s64 max_entries);
+    Result GetDirectoryEntryCount(s64 *out, DirectoryHandle handle);
+    void CloseDirectory(DirectoryHandle handle);
 
 }

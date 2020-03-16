@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -21,14 +21,14 @@ namespace ams::fssystem {
         : PathResolutionFileSystem(fs, unc)
     {
         this->base_path = nullptr;
-        R_ASSERT(this->Initialize(bp));
+        R_ABORT_UNLESS(this->Initialize(bp));
     }
 
     SubDirectoryFileSystem::SubDirectoryFileSystem(std::unique_ptr<fs::fsa::IFileSystem> fs, const char *bp, bool unc)
         : PathResolutionFileSystem(std::move(fs), unc)
     {
         this->base_path = nullptr;
-        R_ASSERT(this->Initialize(bp));
+        R_ABORT_UNLESS(this->Initialize(bp));
     }
 
     SubDirectoryFileSystem::~SubDirectoryFileSystem() {
@@ -48,7 +48,7 @@ namespace ams::fssystem {
 
         /* Ensure terminating '/' */
         if (!PathTool::IsSeparator(normalized_path[normalized_path_len - 1])) {
-            AMS_ASSERT(normalized_path_len + 2 <= sizeof(normalized_path));
+            AMS_ABORT_UNLESS(normalized_path_len + 2 <= sizeof(normalized_path));
             normalized_path[normalized_path_len]     = StringTraits::DirectorySeparator;
             normalized_path[normalized_path_len + 1] = StringTraits::NullTerminator;
 

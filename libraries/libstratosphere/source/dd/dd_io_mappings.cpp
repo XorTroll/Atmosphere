@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -25,7 +25,7 @@ namespace ams::dd {
         R_TRY_CATCH(svcQueryIoMapping(&virtual_addr, aligned_addr, aligned_size)) {
             /* Official software handles this by returning 0. */
             R_CATCH(svc::ResultNotFound) { return 0; }
-        } R_END_TRY_CATCH_WITH_ASSERT;
+        } R_END_TRY_CATCH_WITH_ABORT_UNLESS;
 
         return static_cast<uintptr_t>(virtual_addr + offset);
     }
@@ -34,7 +34,7 @@ namespace ams::dd {
 
         inline u32 ReadWriteRegisterImpl(uintptr_t phys_addr, u32 value, u32 mask) {
             u32 out_value;
-            R_ASSERT(svcReadWriteRegister(&out_value, phys_addr, mask, value));
+            R_ABORT_UNLESS(svcReadWriteRegister(&out_value, phys_addr, mask, value));
             return out_value;
         }
 

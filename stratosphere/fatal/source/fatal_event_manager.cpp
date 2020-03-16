@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -20,7 +20,7 @@ namespace ams::fatal::srv {
     FatalEventManager::FatalEventManager() {
         /* Just create all the events. */
         for (size_t i = 0; i < FatalEventManager::NumFatalEvents; i++) {
-            R_ASSERT(eventCreate(&this->events[i], true));
+            R_ABORT_UNLESS(eventCreate(&this->events[i], true));
         }
     }
 

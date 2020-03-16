@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -15,6 +15,7 @@
  */
 #pragma once
 #include "fs_common.hpp"
+#include "fs_file.hpp"
 
 namespace ams::fs {
 
@@ -41,5 +42,7 @@ namespace ams::fs {
 
     using FileQueryRangeInfo    = QueryRangeInfo;
     using StorageQueryRangeInfo = QueryRangeInfo;
+
+    Result QueryRange(QueryRangeInfo *out, FileHandle handle, s64 offset, s64 size);
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -31,8 +31,8 @@ namespace ams::mitm::bpc {
                  * - fatal, to simplify payload reboot logic significantly
                  * - hbl, to allow homebrew to take advantage of the feature.
                  */
-                return client_info.program_id == ncm::ProgramId::Am ||
-                       client_info.program_id == ncm::ProgramId::Fatal ||
+                return client_info.program_id == ncm::SystemProgramId::Am ||
+                       client_info.program_id == ncm::SystemProgramId::Fatal ||
                        client_info.override_status.IsHbl();
             }
         public:

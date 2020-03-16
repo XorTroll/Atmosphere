@@ -263,7 +263,7 @@ namespace ams::mitm::fspusb::impl {
         if (this->ok) {
             FSP_USB_LOG("%s (interface ID %d): OK to proceed.", __func__, this->client->ID);
             Result rc = PostUSBBuffer(this->client, this->out_endpoint, this->buf_c, SCSI_CSW_SIZE, &in_len);
-            FSP_USB_LOG("%s (interface ID %d): PostUSBBuffer returned 0x%08X (in_len -> %u) (%s).", __func__, this->client->ID, rc, in_len, (R_SUCCEEDED(rc) && in_len == SCSI_CSW_SIZE ? "succeeded" : "failed"));
+            FSP_USB_LOG("%s (interface ID %d): PostUSBBuffer returned 0x%08X (in_len -> %u) (%s).", __func__, this->client->ID, rc.GetValue(), in_len, (R_SUCCEEDED(rc) && in_len == SCSI_CSW_SIZE ? "succeeded" : "failed"));
             
             if (R_SUCCEEDED(rc) && in_len == SCSI_CSW_SIZE) {
                 std::memcpy(&status, this->buf_c, SCSI_CSW_SIZE);
@@ -320,7 +320,7 @@ namespace ams::mitm::fspusb::impl {
             auto rc = PostUSBBuffer(this->client, this->in_endpoint, this->buf_a, SCSIBuffer::BufferSize, &out_len);
             this->ok = (R_SUCCEEDED(rc) && out_len == SCSIBuffer::BufferSize);
             
-            FSP_USB_LOG("%s (interface ID %d): PostUSBBuffer returned 0x%08X (out_len -> %u) (%s).", __func__, this->client->ID, rc, out_len, (R_SUCCEEDED(rc) && out_len == SCSIBuffer::BufferSize ? "succeeded" : "failed"));
+            FSP_USB_LOG("%s (interface ID %d): PostUSBBuffer returned 0x%08X (out_len -> %u) (%s).", __func__, this->client->ID, rc.GetValue(), out_len, (R_SUCCEEDED(rc) && out_len == SCSIBuffer::BufferSize ? "succeeded" : "failed"));
             
             if (R_FAILED(rc)) {
                 /* Check if the endpoint is stalled */
@@ -372,7 +372,7 @@ namespace ams::mitm::fspusb::impl {
                             transferred = 0;
                             rc = PostUSBBuffer(this->client, this->out_endpoint, this->buf_b, cur_transfer_size, &transferred);
                             
-                            FSP_USB_LOG("%s (interface ID %d): PostUSBBuffer returned 0x%08X (transferred -> %u) (%s).", __func__, this->client->ID, rc, transferred, (R_SUCCEEDED(rc) && transferred == cur_transfer_size ? "succeeded" : "failed"));
+                            FSP_USB_LOG("%s (interface ID %d): PostUSBBuffer returned 0x%08X (transferred -> %u) (%s).", __func__, this->client->ID, rc.GetValue(), transferred, (R_SUCCEEDED(rc) && transferred == cur_transfer_size ? "succeeded" : "failed"));
                             
                             if (R_FAILED(rc) || transferred != cur_transfer_size) break;
                             
@@ -399,7 +399,7 @@ namespace ams::mitm::fspusb::impl {
                             transferred = 0;
                             rc = PostUSBBuffer(this->client, this->in_endpoint, this->buf_b, cur_transfer_size, &transferred);
                             
-                            FSP_USB_LOG("%s (interface ID %d): PostUSBBuffer returned 0x%08X (transferred -> %u) (%s).", __func__, this->client->ID, rc, transferred, (R_SUCCEEDED(rc) && transferred == cur_transfer_size ? "succeeded" : "failed"));
+                            FSP_USB_LOG("%s (interface ID %d): PostUSBBuffer returned 0x%08X (transferred -> %u) (%s).", __func__, this->client->ID, rc.GetValue(), transferred, (R_SUCCEEDED(rc) && transferred == cur_transfer_size ? "succeeded" : "failed"));
                             
                             if (R_FAILED(rc) || transferred != cur_transfer_size) break;
                             

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -21,7 +21,6 @@ extern "C" {
 
     u32 __nx_applet_type = AppletType_None;
     u32 __nx_fs_num_sessions = 1;
-    u32 __nx_fsdev_direntry_cache_size = 1;
 
     #define INNER_HEAP_SIZE 0x8000
     size_t nx_inner_heap_size = INNER_HEAP_SIZE;
@@ -39,7 +38,7 @@ extern "C" {
 
 namespace ams {
 
-    ncm::ProgramId CurrentProgramId = ncm::ProgramId::Loader;
+    ncm::ProgramId CurrentProgramId = ncm::SystemProgramId::Loader;
 
     namespace result {
 
@@ -72,9 +71,9 @@ void __appInit(void) {
 
     /* Initialize services we need. */
     sm::DoWithSession([&]() {
-        R_ASSERT(fsInitialize());
-        R_ASSERT(lrInitialize());
-        R_ASSERT(fsldrInitialize());
+        R_ABORT_UNLESS(fsInitialize());
+        lr::Initialize();
+        R_ABORT_UNLESS(fsldrInitialize());
     });
 
     ams::CheckApiVersion();
@@ -82,9 +81,8 @@ void __appInit(void) {
 
 void __appExit(void) {
     /* Cleanup services. */
-    fsdevUnmountAll();
     fsldrExit();
-    lrExit();
+    lr::Finalize();
     fsExit();
 }
 
@@ -115,9 +113,9 @@ namespace {
 int main(int argc, char **argv)
 {
     /* Add services to manager. */
-    R_ASSERT((g_server_manager.RegisterServer<ldr::pm::ProcessManagerInterface>(ProcessManagerServiceName, ProcessManagerMaxSessions)));
-    R_ASSERT((g_server_manager.RegisterServer<ldr::shell::ShellInterface>(ShellServiceName, ShellMaxSessions)));
-    R_ASSERT((g_server_manager.RegisterServer<ldr::dmnt::DebugMonitorInterface>(DebugMonitorServiceName, DebugMonitorMaxSessions)));
+    R_ABORT_UNLESS((g_server_manager.RegisterServer<ldr::pm::ProcessManagerInterface>(ProcessManagerServiceName, ProcessManagerMaxSessions)));
+    R_ABORT_UNLESS((g_server_manager.RegisterServer<ldr::shell::ShellInterface>(ShellServiceName, ShellMaxSessions)));
+    R_ABORT_UNLESS((g_server_manager.RegisterServer<ldr::dmnt::DebugMonitorInterface>(DebugMonitorServiceName, DebugMonitorMaxSessions)));
 
     /* Loop forever, servicing our services. */
     g_server_manager.LoopProcess();

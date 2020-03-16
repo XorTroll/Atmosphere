@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -44,13 +44,13 @@ namespace ams::mitm::bpc {
         /* Create bpc:ams. */
         {
             Handle bpcams_h;
-            R_ASSERT(svcManageNamedPort(&bpcams_h, AtmosphereServiceName.name, AtmosphereMaxSessions));
+            R_ABORT_UNLESS(svcManageNamedPort(&bpcams_h, AtmosphereServiceName.name, AtmosphereMaxSessions));
             g_server_manager.RegisterServer<bpc::AtmosphereService>(bpcams_h);
         }
 
         /* Create bpc mitm. */
         const sm::ServiceName service_name = (hos::GetVersion() >= hos::Version_200) ? MitmServiceName : DeprecatedMitmServiceName;
-        R_ASSERT(g_server_manager.RegisterMitmServer<BpcMitmService>(service_name));
+        R_ABORT_UNLESS(g_server_manager.RegisterMitmServer<BpcMitmService>(service_name));
 
         /* Loop forever, servicing our services. */
         g_server_manager.LoopProcess();

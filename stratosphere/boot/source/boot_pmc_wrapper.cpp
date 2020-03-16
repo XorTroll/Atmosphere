@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -32,19 +32,19 @@ namespace ams::boot {
 
         inline u32 ReadWriteRegisterImpl(uintptr_t phys_addr, u32 value, u32 mask) {
             u32 out_value;
-            R_ASSERT(spl::smc::ConvertResult(spl::smc::AtmosphereReadWriteRegister(phys_addr, mask, value, &out_value)));
+            R_ABORT_UNLESS(spl::smc::ConvertResult(spl::smc::AtmosphereReadWriteRegister(phys_addr, mask, value, &out_value)));
             return out_value;
         }
 
     }
 
     u32 ReadPmcRegister(u32 phys_addr) {
-        AMS_ASSERT(IsValidPmcAddress(phys_addr));
+        AMS_ABORT_UNLESS(IsValidPmcAddress(phys_addr));
         return ReadWriteRegisterImpl(phys_addr, 0, 0);
     }
 
     void WritePmcRegister(u32 phys_addr, u32 value, u32 mask) {
-        AMS_ASSERT(IsValidPmcAddress(phys_addr));
+        AMS_ABORT_UNLESS(IsValidPmcAddress(phys_addr));
         ReadWriteRegisterImpl(phys_addr, value, mask);
     }
 

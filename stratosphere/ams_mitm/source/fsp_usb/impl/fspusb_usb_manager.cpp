@@ -273,7 +273,7 @@ namespace ams::mitm::fspusb::impl {
             R_TRY(eventCreate(&g_usb_manager_thread_exit_event, true));
             R_TRY(g_usb_update_thread.Initialize(&ManagerUpdateThread, nullptr, 0x4000, 0x15));
             R_TRY(g_usb_update_thread.Start());
-                    
+            
             g_usb_manager_initialized = true;
         }
 

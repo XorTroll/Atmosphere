@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -44,7 +44,7 @@ namespace ams::sf {
         public:
             constexpr Out(uintptr_t p) : ptr(reinterpret_cast<T *>(p)) { /* ... */ }
             constexpr Out(T *p) : ptr(p) { /* ... */ }
-            constexpr Out(const cmif::PointerAndSize &pas) : ptr(reinterpret_cast<T *>(pas.GetAddress())) { /* TODO: Is AMS_ASSERT(pas.GetSize() >= sizeof(T)); necessary? */ }
+            constexpr Out(const cmif::PointerAndSize &pas) : ptr(reinterpret_cast<T *>(pas.GetAddress())) { /* TODO: Is AMS_ABORT_UNLESS(pas.GetSize() >= sizeof(T)); necessary? */ }
 
             void SetValue(const T& value) const {
                 *this->ptr = value;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -15,7 +15,7 @@
  */
 
 #pragma once
-#include "results_common.hpp"
+#include <vapours/results/results_common.hpp>
 
 namespace ams::lr {
 
@@ -28,6 +28,7 @@ namespace ams::lr {
     R_DEFINE_ERROR_RESULT(AddOnContentNotFound,     7);
     R_DEFINE_ERROR_RESULT(ControlNotFound,          8);
     R_DEFINE_ERROR_RESULT(LegalInformationNotFound, 9);
+    R_DEFINE_ERROR_RESULT(DebugProgramNotFound,    10);
 
     R_DEFINE_ERROR_RESULT(TooManyRegisteredPaths,   90);
 

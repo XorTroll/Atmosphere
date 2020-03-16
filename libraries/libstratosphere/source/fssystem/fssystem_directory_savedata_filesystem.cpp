@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -134,7 +134,7 @@ namespace ams::fssystem {
 
         /* TODO: Return a result here? Nintendo does not, but they have other allocation failed results. */
         /* Consider returning ResultFsAllocationFailureInDirectorySaveDataFileSystem? */
-        AMS_ASSERT(false);
+        AMS_ABORT_UNLESS(false);
     }
 
     Result DirectorySaveDataFileSystem::SynchronizeDirectory(const char *dst, const char *src) {
@@ -173,12 +173,12 @@ namespace ams::fssystem {
         this->open_writable_files--;
 
         /* Nintendo does not check this, but I think it's sensible to do so. */
-        AMS_ASSERT(this->open_writable_files >= 0);
+        AMS_ABORT_UNLESS(this->open_writable_files >= 0);
     }
 
     Result DirectorySaveDataFileSystem::CopySaveFromFileSystem(fs::fsa::IFileSystem *save_fs) {
         /* If the input save is null, there's nothing to copy. */
-        R_UNLESS(save_fs != nullptr, ResultSuccess());
+        R_SUCCEED_IF(save_fs == nullptr);
 
         /* Get a work buffer to work with. */
         std::unique_ptr<u8[]> work_buf;

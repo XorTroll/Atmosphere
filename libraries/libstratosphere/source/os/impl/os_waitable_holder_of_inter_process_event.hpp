@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -31,7 +31,7 @@ namespace ams::os::impl {
             }
 
             virtual Handle GetHandle() const override {
-                AMS_ASSERT(this->event->is_initialized);
+                AMS_ABORT_UNLESS(this->event->is_initialized);
                 return this->event->GetReadableHandle();
             }
     };

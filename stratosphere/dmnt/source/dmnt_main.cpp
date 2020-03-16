@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -21,7 +21,6 @@ extern "C" {
 
     u32 __nx_applet_type = AppletType_None;
     u32 __nx_fs_num_sessions = 1;
-    u32 __nx_fsdev_direntry_cache_size = 1;
 
     /* TODO: Evaluate how much this can be reduced by. */
     #define INNER_HEAP_SIZE 0x20000
@@ -35,7 +34,7 @@ extern "C" {
 
 namespace ams {
 
-    ncm::ProgramId CurrentProgramId = ncm::ProgramId::Dmnt;
+    ncm::ProgramId CurrentProgramId = ncm::SystemProgramId::Dmnt;
 
     namespace result {
 
@@ -63,34 +62,33 @@ void __appInit(void) {
     hos::SetVersionForLibnx();
 
     sm::DoWithSession([&]() {
-        R_ASSERT(pmdmntInitialize());
-        R_ASSERT(pminfoInitialize());
-        R_ASSERT(ldrDmntInitialize());
+        R_ABORT_UNLESS(pmdmntInitialize());
+        R_ABORT_UNLESS(pminfoInitialize());
+        R_ABORT_UNLESS(ldrDmntInitialize());
         /* TODO: We provide this on every sysver via ro. Do we need a shim? */
         if (hos::GetVersion() >= hos::Version_300) {
-            R_ASSERT(roDmntInitialize());
+            R_ABORT_UNLESS(roDmntInitialize());
         }
-        R_ASSERT(nsdevInitialize());
-        R_ASSERT(lrInitialize());
-        R_ASSERT(setInitialize());
-        R_ASSERT(setsysInitialize());
-        R_ASSERT(hidInitialize());
-        R_ASSERT(fsInitialize());
+        R_ABORT_UNLESS(nsdevInitialize());
+        lr::Initialize();
+        R_ABORT_UNLESS(setInitialize());
+        R_ABORT_UNLESS(setsysInitialize());
+        R_ABORT_UNLESS(hidInitialize());
+        R_ABORT_UNLESS(fsInitialize());
     });
 
-    R_ASSERT(fsdevMountSdmc());
+    R_ABORT_UNLESS(fs::MountSdCard("sdmc"));
 
     ams::CheckApiVersion();
 }
 
 void __appExit(void) {
     /* Cleanup services. */
-    fsdevUnmountAll();
     fsExit();
     hidExit();
     setsysExit();
     setExit();
-    lrExit();
+    lr::Finalize();
     nsdevExit();
     roDmntExit();
     ldrDmntExit();
@@ -132,8 +130,8 @@ int main(int argc, char **argv)
 {
     /* Create services. */
     /* TODO: Implement rest of dmnt:- in ams.tma development branch. */
-    /* R_ASSERT((g_server_manager.RegisterServer<dmnt::cheat::CheatService>(DebugMonitorServiceName, DebugMonitorMaxSessions))); */
-    R_ASSERT((g_server_manager.RegisterServer<dmnt::cheat::CheatService>(CheatServiceName, CheatMaxSessions)));
+    /* R_ABORT_UNLESS((g_server_manager.RegisterServer<dmnt::cheat::CheatService>(DebugMonitorServiceName, DebugMonitorMaxSessions))); */
+    R_ABORT_UNLESS((g_server_manager.RegisterServer<dmnt::cheat::CheatService>(CheatServiceName, CheatMaxSessions)));
 
     /* Loop forever, servicing our services. */
     /* Nintendo loops four threads processing on the manager -- we'll loop an extra fifth for our cheat service. */
@@ -143,14 +141,14 @@ int main(int argc, char **argv)
         if constexpr (NumExtraThreads > 0) {
             const u32 priority = os::GetCurrentThreadPriority();
             for (size_t i = 0; i < NumExtraThreads; i++) {
-                R_ASSERT(g_extra_threads[i].Initialize(LoopServerThread, nullptr, g_extra_thread_stacks[i], ThreadStackSize, priority));
+                R_ABORT_UNLESS(g_extra_threads[i].Initialize(LoopServerThread, nullptr, g_extra_thread_stacks[i], ThreadStackSize, priority));
             }
         }
 
         /* Start extra threads. */
         if constexpr (NumExtraThreads > 0) {
             for (size_t i = 0; i < NumExtraThreads; i++) {
-                R_ASSERT(g_extra_threads[i].Start());
+                R_ABORT_UNLESS(g_extra_threads[i].Start());
             }
         }
 
@@ -160,7 +158,7 @@ int main(int argc, char **argv)
         /* Wait for extra threads to finish. */
         if constexpr (NumExtraThreads > 0) {
             for (size_t i = 0; i < NumExtraThreads; i++) {
-                R_ASSERT(g_extra_threads[i].Join());
+                R_ABORT_UNLESS(g_extra_threads[i].Join());
             }
         }
     }

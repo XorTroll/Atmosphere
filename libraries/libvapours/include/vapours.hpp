@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -15,10 +15,13 @@
  */
 
 #pragma once
-#include "vapours/includes.hpp"
-#include "vapours/defines.hpp"
-#include "vapours/literals.hpp"
+#include <vapours/common.hpp>
+#include <vapours/assert.hpp>
+#include <vapours/literals.hpp>
 
-#include "vapours/util.hpp"
-#include "vapours/results.hpp"
-#include "vapours/svc.hpp"
+#include <vapours/timespan.hpp>
+
+#include <vapours/util.hpp>
+#include <vapours/results.hpp>
+#include <vapours/crypto.hpp>
+#include <vapours/svc.hpp>

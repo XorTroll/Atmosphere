@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -32,7 +32,7 @@ extern "C" {
     void __appExit(void);
 
     /* Exception handling. */
-    alignas(16) u8 __nx_exception_stack[ams::os::MemoryBlockUnitSize];
+    alignas(16) u8 __nx_exception_stack[ams::os::MemoryPageSize];
     u64 __nx_exception_stack_size = sizeof(__nx_exception_stack);
     void __libnx_exception_handler(ThreadExceptionDump *ctx);
 
@@ -40,7 +40,7 @@ extern "C" {
 
 namespace ams {
 
-    ncm::ProgramId CurrentProgramId = ncm::ProgramId::Sm;
+    ncm::ProgramId CurrentProgramId = ncm::SystemProgramId::Sm;
 
     namespace result {
 
@@ -95,14 +95,14 @@ int main(int argc, char **argv)
     /* Create sm:, (and thus allow things to register to it). */
     {
         Handle sm_h;
-        R_ASSERT(svcManageNamedPort(&sm_h, "sm:", 0x40));
+        R_ABORT_UNLESS(svcManageNamedPort(&sm_h, "sm:", 0x40));
         g_server_manager.RegisterServer<sm::UserService>(sm_h);
     }
 
     /* Create sm:m manually. */
     {
         Handle smm_h;
-        R_ASSERT(sm::impl::RegisterServiceForSelf(&smm_h, sm::ServiceName::Encode("sm:m"), 1));
+        R_ABORT_UNLESS(sm::impl::RegisterServiceForSelf(&smm_h, sm::ServiceName::Encode("sm:m"), 1));
         g_server_manager.RegisterServer<sm::ManagerService>(smm_h);
     }
 
@@ -110,7 +110,7 @@ int main(int argc, char **argv)
     /* Create sm:dmnt manually. */
     {
         Handle smdmnt_h;
-        R_ASSERT(sm::impl::RegisterServiceForSelf(&smdmnt_h, sm::ServiceName::Encode("sm:dmnt"), 1));
+        R_ABORT_UNLESS(sm::impl::RegisterServiceForSelf(&smdmnt_h, sm::ServiceName::Encode("sm:dmnt"), 1));
         g_server_manager.RegisterServer<sm::DmntService>(smdmnt_h);
     }
 

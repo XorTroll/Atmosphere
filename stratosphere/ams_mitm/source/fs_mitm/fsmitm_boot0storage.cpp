@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Atmosphère-NX
+ * Copyright (c) 2018-2020 Atmosphère-NX
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -31,7 +31,7 @@ namespace ams::mitm::fs {
             /* RCM bug patched. */
             /* Only allow NS to update the BCT pubks. */
             /* AutoRCM on a patched unit will cause a brick, so homebrew should NOT be allowed to write. */
-            return this->client_info.program_id == ncm::ProgramId::Ns;
+            return this->client_info.program_id == ncm::SystemProgramId::Ns;
         } else {
             /* RCM bug unpatched. */
             /* Allow homebrew but not NS to update the BCT pubks. */
