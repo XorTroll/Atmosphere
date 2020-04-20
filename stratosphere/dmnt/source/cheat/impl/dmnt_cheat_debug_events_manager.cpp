@@ -25,10 +25,10 @@ namespace ams::dmnt::cheat::impl {
             public:
                 static constexpr size_t NumCores = 4;
                 static constexpr size_t ThreadStackSize = os::MemoryPageSize;
-                static constexpr size_t ThreadPriority = 24;
             private:
+                std::array<uintptr_t, NumCores> message_queue_buffers;
                 std::array<os::MessageQueue, NumCores> message_queues;
-                std::array<os::Thread, NumCores> threads;
+                std::array<os::ThreadType, NumCores> threads;
                 os::Event continued_event;
 
                 alignas(os::MemoryPageSize) u8 thread_stacks[NumCores][ThreadStackSize];
@@ -75,7 +75,7 @@ namespace ams::dmnt::cheat::impl {
                 }
 
                 Result ContinueDebugEvent(Handle debug_handle) {
-                    if (hos::GetVersion() >= hos::Version_300) {
+                    if (hos::GetVersion() >= hos::Version_3_0_0) {
                         return svcContinueDebugEvent(debug_handle, 5, nullptr, 0);
                     } else {
                         return svcLegacyContinueDebugEvent(debug_handle, 5, 0);
@@ -91,16 +91,25 @@ namespace ams::dmnt::cheat::impl {
                 }
 
             public:
-                DebugEventsManager() : message_queues{os::MessageQueue(1), os::MessageQueue(1), os::MessageQueue(1), os::MessageQueue(1)}, thread_stacks{} {
+                DebugEventsManager()
+                    : message_queues{
+                        os::MessageQueue(std::addressof(message_queue_buffers[0]), 1),
+                        os::MessageQueue(std::addressof(message_queue_buffers[1]), 1),
+                        os::MessageQueue(std::addressof(message_queue_buffers[2]), 1),
+                        os::MessageQueue(std::addressof(message_queue_buffers[3]), 1)},
+                     continued_event(os::EventClearMode_AutoClear),
+                     thread_stacks{}
+                {
                     for (size_t i = 0; i < NumCores; i++) {
                         /* Create thread. */
-                        R_ABORT_UNLESS(this->threads[i].Initialize(&DebugEventsManager::PerCoreThreadFunction, reinterpret_cast<void *>(this), this->thread_stacks[i], ThreadStackSize, ThreadPriority, i));
+                        R_ABORT_UNLESS(os::CreateThread(std::addressof(this->threads[i]), PerCoreThreadFunction, this, this->thread_stacks[i], ThreadStackSize, AMS_GET_SYSTEM_THREAD_PRIORITY(dmnt, MultiCoreEventManager), i));
+                        os::SetThreadNamePointer(std::addressof(this->threads[i]), AMS_GET_SYSTEM_THREAD_NAME(dmnt, MultiCoreEventManager));
 
                         /* Set core mask. */
-                        R_ABORT_UNLESS(svcSetThreadCoreMask(this->threads[i].GetHandle(), i, (1u << i)));
+                        os::SetThreadCoreMask(std::addressof(this->threads[i]), i, (1u << i));
 
                         /* Start thread. */
-                        R_ABORT_UNLESS(this->threads[i].Start());
+                        os::StartThread(std::addressof(this->threads[i]));
                     }
                 }
 
@@ -108,7 +117,7 @@ namespace ams::dmnt::cheat::impl {
                     /* Loop getting all debug events. */
                     svc::DebugEventInfo d;
                     size_t target_core = NumCores - 1;
-                    while (R_SUCCEEDED(svcGetDebugEvent(reinterpret_cast<u8 *>(&d), cheat_dbg_hnd))) {
+                    while (R_SUCCEEDED(svc::GetDebugEvent(std::addressof(d), cheat_dbg_hnd))) {
                         if (d.type == svc::DebugEvent_AttachThread) {
                             target_core = GetTargetCore(d, cheat_dbg_hnd);
                         }
@@ -121,12 +130,16 @@ namespace ams::dmnt::cheat::impl {
         };
 
         /* Manager global. */
-        DebugEventsManager g_events_manager;
+        TYPED_STORAGE(DebugEventsManager) g_events_manager;
 
     }
 
+    void InitializeDebugEventsManager() {
+        new (GetPointer(g_events_manager)) DebugEventsManager;
+    }
+
     void ContinueCheatProcess(Handle cheat_dbg_hnd) {
-        g_events_manager.ContinueCheatProcess(cheat_dbg_hnd);
+        GetReference(g_events_manager).ContinueCheatProcess(cheat_dbg_hnd);
     }
 
 }

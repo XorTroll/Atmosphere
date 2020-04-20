@@ -43,9 +43,9 @@ namespace ams::pm::impl {
             const ncm::ProgramLocation loc;
             const cfg::OverrideStatus status;
             Handle handle;
-            ProcessState state;
+            svc::ProcessState state;
             u32 flags;
-            os::WaitableHolder waitable_holder;
+            os::WaitableHolderType waitable_holder;
         private:
             void SetFlag(Flag flag) {
                 this->flags |= flag;
@@ -63,8 +63,8 @@ namespace ams::pm::impl {
             ~ProcessInfo();
             void Cleanup();
 
-            void LinkToWaitableManager(os::WaitableManager &manager) {
-                manager.LinkWaitableHolder(&this->waitable_holder);
+            void LinkToWaitableManager(os::WaitableManagerType &manager) {
+                os::LinkWaitableHolder(std::addressof(manager), std::addressof(this->waitable_holder));
             }
 
             Handle GetHandle() const {
@@ -87,20 +87,20 @@ namespace ams::pm::impl {
                 return this->status;
             }
 
-            ProcessState GetState() const {
+            svc::ProcessState GetState() const {
                 return this->state;
             }
 
-            void SetState(ProcessState state) {
+            void SetState(svc::ProcessState state) {
                 this->state = state;
             }
 
             bool HasStarted() const {
-                return this->state != ProcessState_Created && this->state != ProcessState_CreatedAttached;
+                return this->state != svc::ProcessState_Created && this->state != svc::ProcessState_CreatedAttached;
             }
 
-            bool HasExited() const {
-                return this->state == ProcessState_Exited;
+            bool HasTerminated() const {
+                return this->state == svc::ProcessState_Terminated;
             }
 
 #define DEFINE_FLAG_SET(flag) \
@@ -163,6 +163,8 @@ namespace ams::pm::impl {
         private:
             os::Mutex lock;
         public:
+            constexpr ProcessList() : lock(false) { /* ... */ }
+
             void Lock() {
                 this->lock.Lock();
             }

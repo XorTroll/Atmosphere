@@ -60,6 +60,8 @@ namespace ams::svc {
             T pointer;
         public:
             constexpr ALWAYS_INLINE UserPointer(T p) : pointer(p) { /* ... */ }
+
+            constexpr ALWAYS_INLINE T GetPointerUnsafe() { return this->pointer; }
     };
 
     template<typename T>
@@ -168,11 +170,11 @@ namespace ams::svc {
         InitialProcessIdRangeInfo_Maximum = 1,
     };
 
-    enum PhysicalMemoryInfo : u64 {
-        PhysicalMemoryInfo_Application  = 0,
-        PhysicalMemoryInfo_Applet       = 1,
-        PhysicalMemoryInfo_System       = 2,
-        PhysicalMemoryInfo_SystemUnsafe = 3,
+    enum PhysicalMemorySystemInfo : u64 {
+        PhysicalMemorySystemInfo_Application  = 0,
+        PhysicalMemorySystemInfo_Applet       = 1,
+        PhysicalMemorySystemInfo_System       = 2,
+        PhysicalMemorySystemInfo_SystemUnsafe = 3,
     };
 
     enum LastThreadInfoFlag : u32 {
@@ -277,10 +279,14 @@ namespace ams::svc {
         ThreadActivity_Paused   = 1,
     };
 
-    constexpr size_t ThreadLocalRegionSize = 0x200;
+    constexpr inline s32 IdealCoreDontCare        = -1;
+    constexpr inline s32 IdealCoreUseProcessValue = -2;
+    constexpr inline s32 IdealCoreNoUpdate        = -3;
 
-    constexpr s32 LowestThreadPriority  = 63;
-    constexpr s32 HighestThreadPriority = 0;
+    constexpr inline s32 LowestThreadPriority  = 63;
+    constexpr inline s32 HighestThreadPriority = 0;
+
+    constexpr inline s32 SystemThreadPriorityHighest = 16;
 
     /* Process types. */
     enum ProcessInfoType : u32 {

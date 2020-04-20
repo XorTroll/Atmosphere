@@ -58,10 +58,12 @@ dist-no-debug: all
 	mkdir atmosphere-$(AMSVER)/switch
 	mkdir -p atmosphere-$(AMSVER)/atmosphere/contents/0100000000000008
 	mkdir -p atmosphere-$(AMSVER)/atmosphere/contents/010000000000000D
+	mkdir -p atmosphere-$(AMSVER)/atmosphere/contents/010000000000002B
 	mkdir -p atmosphere-$(AMSVER)/atmosphere/contents/0100000000000032
 	mkdir -p atmosphere-$(AMSVER)/atmosphere/contents/0100000000000034
 	mkdir -p atmosphere-$(AMSVER)/atmosphere/contents/0100000000000036
 	mkdir -p atmosphere-$(AMSVER)/atmosphere/contents/0100000000000037
+	mkdir -p atmosphere-$(AMSVER)/atmosphere/contents/010000000000003C
 	mkdir -p atmosphere-$(AMSVER)/atmosphere/fatal_errors
 	mkdir -p atmosphere-$(AMSVER)/atmosphere/config_templates
 	mkdir -p atmosphere-$(AMSVER)/atmosphere/config
@@ -82,10 +84,12 @@ dist-no-debug: all
 	cp -r config_templates/hbl_html atmosphere-$(AMSVER)/atmosphere/hbl_html
 	cp stratosphere/boot2/boot2.nsp atmosphere-$(AMSVER)/atmosphere/contents/0100000000000008/exefs.nsp
 	cp stratosphere/dmnt/dmnt.nsp atmosphere-$(AMSVER)/atmosphere/contents/010000000000000D/exefs.nsp
+	cp stratosphere/erpt/erpt.nsp atmosphere-$(AMSVER)/atmosphere/contents/010000000000002B/exefs.nsp
 	cp stratosphere/eclct.stub/eclct.stub.nsp atmosphere-$(AMSVER)/atmosphere/contents/0100000000000032/exefs.nsp
 	cp stratosphere/fatal/fatal.nsp atmosphere-$(AMSVER)/atmosphere/contents/0100000000000034/exefs.nsp
 	cp stratosphere/creport/creport.nsp atmosphere-$(AMSVER)/atmosphere/contents/0100000000000036/exefs.nsp
 	cp stratosphere/ro/ro.nsp atmosphere-$(AMSVER)/atmosphere/contents/0100000000000037/exefs.nsp
+	cp stratosphere/jpegdec/jpegdec.nsp atmosphere-$(AMSVER)/atmosphere/contents/010000000000003C/exefs.nsp
 	mkdir -p atmosphere-$(AMSVER)/atmosphere/contents/0100000000000032/flags
 	touch atmosphere-$(AMSVER)/atmosphere/contents/0100000000000032/flags/boot2.flag
 	mkdir -p atmosphere-$(AMSVER)/atmosphere/contents/0100000000000037/flags
@@ -133,6 +137,8 @@ dist: dist-no-debug
 	cp stratosphere/ro/ro.elf atmosphere-$(AMSVER)-debug/ro.elf
 	cp stratosphere/sm/sm.elf atmosphere-$(AMSVER)-debug/sm.elf
 	cp stratosphere/spl/spl.elf atmosphere-$(AMSVER)-debug/spl.elf
+	cp stratosphere/erpt/erpt.elf atmosphere-$(AMSVER)-debug/erpt.elf
+	cp stratosphere/jpegdec/jpegdec.elf atmosphere-$(AMSVER)-debug/jpegdec.elf
 	cd atmosphere-$(AMSVER)-debug; zip -r ../atmosphere-$(AMSVER)-debug.zip ./*; cd ../;
 	rm -r atmosphere-$(AMSVER)-debug
 	mv atmosphere-$(AMSVER)-debug.zip out/atmosphere-$(AMSVER)-debug.zip

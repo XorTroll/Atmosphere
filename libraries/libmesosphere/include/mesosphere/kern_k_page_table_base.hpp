@@ -91,7 +91,7 @@ namespace ams::kern {
             };
             static_assert(std::is_trivially_destructible<PageLinkedList>::value);
 
-            static constexpr u32 DefaultMemoryIgnoreAttr = KMemoryAttribute_DontCareMask | KMemoryAttribute_IpcLocked | KMemoryAttribute_DeviceShared;
+            static constexpr u32 DefaultMemoryIgnoreAttr = KMemoryAttribute_IpcLocked | KMemoryAttribute_DeviceShared;
 
             static constexpr size_t GetAddressSpaceWidth(ams::svc::CreateProcessFlag as_type) {
                 switch (static_cast<ams::svc::CreateProcessFlag>(as_type & ams::svc::CreateProcessFlag_AddressSpaceMask)) {
@@ -135,6 +135,7 @@ namespace ams::kern {
             KProcessAddress code_region_end;
             size_t max_heap_size;
             size_t max_physical_memory_size;
+            size_t mapped_unsafe_physical_memory;
             mutable KLightLock general_lock;
             mutable KLightLock map_physical_memory_lock;
             KPageTableImpl impl;
@@ -156,9 +157,9 @@ namespace ams::kern {
                 address_space_start(), address_space_end(), heap_region_start(), heap_region_end(), current_heap_end(),
                 alias_region_start(), alias_region_end(), stack_region_start(), stack_region_end(), kernel_map_region_start(),
                 kernel_map_region_end(), alias_code_region_start(), alias_code_region_end(), code_region_start(), code_region_end(),
-                max_heap_size(), max_physical_memory_size(), general_lock(), map_physical_memory_lock(), impl(), memory_block_manager(),
-                allocate_option(), address_space_width(), is_kernel(), enable_aslr(), memory_block_slab_manager(), block_info_manager(),
-                cached_physical_linear_region(), cached_physical_heap_region(), cached_virtual_heap_region(),
+                max_heap_size(), max_physical_memory_size(),mapped_unsafe_physical_memory(), general_lock(), map_physical_memory_lock(),
+                impl(), memory_block_manager(), allocate_option(), address_space_width(), is_kernel(), enable_aslr(), memory_block_slab_manager(),
+                block_info_manager(), cached_physical_linear_region(), cached_physical_heap_region(), cached_virtual_heap_region(),
                 heap_fill_value(), ipc_fill_value(), stack_fill_value()
             {
                 /* ... */
@@ -190,8 +191,6 @@ namespace ams::kern {
 
             KPageTableImpl &GetImpl() { return this->impl; }
             const KPageTableImpl &GetImpl() const { return this->impl; }
-
-            KBlockInfoManager *GetBlockInfoManager() const { return this->block_info_manager; }
 
             bool IsLockedByCurrentThread() const { return this->general_lock.IsLockedByCurrentThread(); }
 
@@ -245,6 +244,8 @@ namespace ams::kern {
                 return this->GetImpl().GetPhysicalAddress(out, virt_addr);
             }
 
+            KBlockInfoManager *GetBlockInfoManager() const { return this->block_info_manager; }
+
             Result SetMemoryPermission(KProcessAddress addr, size_t size, ams::svc::MemoryPermission perm);
             Result SetProcessMemoryPermission(KProcessAddress addr, size_t size, ams::svc::MemoryPermission perm);
             Result SetHeapSize(KProcessAddress *out, size_t size);
@@ -270,18 +271,22 @@ namespace ams::kern {
             Result MapPageGroup(KProcessAddress *out_addr, const KPageGroup &pg, KProcessAddress region_start, size_t region_num_pages, KMemoryState state, KMemoryPermission perm);
             Result MapPageGroup(KProcessAddress address, const KPageGroup &pg, KMemoryState state, KMemoryPermission perm);
             Result UnmapPageGroup(KProcessAddress address, const KPageGroup &pg, KMemoryState state);
+
+            Result MakeAndOpenPageGroup(KPageGroup *out, KProcessAddress address, size_t num_pages, u32 state_mask, u32 state, u32 perm_mask, u32 perm, u32 attr_mask, u32 attr);
         public:
             KProcessAddress GetAddressSpaceStart()    const { return this->address_space_start; }
             KProcessAddress GetHeapRegionStart()      const { return this->heap_region_start; }
             KProcessAddress GetAliasRegionStart()     const { return this->alias_region_start; }
             KProcessAddress GetStackRegionStart()     const { return this->stack_region_start; }
             KProcessAddress GetKernelMapRegionStart() const { return this->kernel_map_region_start; }
+            KProcessAddress GetAliasCodeRegionStart() const { return this->alias_code_region_start; }
 
             size_t GetAddressSpaceSize()    const { return this->address_space_end     - this->address_space_start; }
             size_t GetHeapRegionSize()      const { return this->heap_region_end       - this->heap_region_start; }
             size_t GetAliasRegionSize()     const { return this->alias_region_end      - this->alias_region_start; }
             size_t GetStackRegionSize()     const { return this->stack_region_end      - this->stack_region_start; }
             size_t GetKernelMapRegionSize() const { return this->kernel_map_region_end - this->kernel_map_region_start; }
+            size_t GetAliasCodeRegionSize() const { return this->alias_code_region_end - this->alias_code_region_start; }
         public:
             static ALWAYS_INLINE KVirtualAddress GetLinearVirtualAddress(KPhysicalAddress addr) {
                 return KMemoryLayout::GetLinearVirtualAddress(addr);

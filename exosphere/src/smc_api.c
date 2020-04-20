@@ -25,6 +25,8 @@
 #include "synchronization.h"
 #include "masterkey.h"
 #include "mc.h"
+#include "mc0.h"
+#include "mc1.h"
 #include "memory_map.h"
 #include "pmc.h"
 #include "randomcache.h"
@@ -188,6 +190,7 @@ void set_version_specific_smcs(void) {
         case ATMOSPHERE_TARGET_FIRMWARE_810:
         case ATMOSPHERE_TARGET_FIRMWARE_900:
         case ATMOSPHERE_TARGET_FIRMWARE_910:
+        case ATMOSPHERE_TARGET_FIRMWARE_1000:
             /* No more LoadSecureExpModKey. */
             g_smc_user_table[0xE].handler = NULL;
             g_smc_user_table[0xC].id = 0xC300D60C;
@@ -433,19 +436,18 @@ uint32_t smc_get_result(smc_args_t *args) {
 }
 
 uint32_t smc_exp_mod_get_result(void *buf, uint64_t size) {
-    if (get_exp_mod_done() != 1) {
-        return 3;
+    uint32_t res = get_exp_mod_result();
+    if (res == 0) {
+        if (size == 0x100) {
+            se_get_exp_mod_output(buf, 0x100);
+            /* smc_exp_mod is done now. */
+            clear_user_smc_in_progress();
+            res = 0;
+        } else {
+            res = 2;
+        }
     }
-
-    if (size != 0x100) {
-        return 2;
-    }
-
-    se_get_exp_mod_output(buf, 0x100);
-
-    /* smc_exp_mod is done now. */
-    clear_user_smc_in_progress();
-    return 0;
+    return res;
 }
 
 uint32_t smc_exp_mod(smc_args_t *args) {
@@ -508,30 +510,31 @@ uint32_t smc_unwrap_rsa_oaep_wrapped_titlekey_get_result(void *buf, uint64_t siz
     uint8_t aes_wrapped_titlekey[0x10];
     uint8_t titlekey[0x10];
     uint64_t sealed_titlekey[2];
-    if (get_exp_mod_done() != 1) {
-        return 3;
+    uint32_t res = get_exp_mod_result();
+    if (res == 0) {
+        if (size == 0x10) {
+            se_get_exp_mod_output(rsa_wrapped_titlekey, 0x100);
+            if (tkey_rsa_oaep_unwrap(aes_wrapped_titlekey, 0x10, rsa_wrapped_titlekey, 0x100) == 0x10) {
+                tkey_aes_unwrap(titlekey, 0x10, aes_wrapped_titlekey, 0x10);
+                seal_titlekey(sealed_titlekey, 0x10, titlekey, 0x10);
+
+                p_sealed_key[0] = sealed_titlekey[0];
+                p_sealed_key[1] = sealed_titlekey[1];
+
+                res = 0;
+            } else {
+                /* Failed to extract RSA OAEP wrapped key. */
+                res = 2;
+            }
+
+            /* smc_unwrap_rsa_oaep_wrapped_titlekey is done now. */
+            clear_user_smc_in_progress();
+        } else {
+            res = 2;
+        }
     }
 
-    if (size != 0x10) {
-        return 2;
-    }
-
-    se_get_exp_mod_output(rsa_wrapped_titlekey, 0x100);
-    if (tkey_rsa_oaep_unwrap(aes_wrapped_titlekey, 0x10, rsa_wrapped_titlekey, 0x100) != 0x10) {
-        /* Failed to extract RSA OAEP wrapped key. */
-        clear_user_smc_in_progress();
-        return 2;
-    }
-
-    tkey_aes_unwrap(titlekey, 0x10, aes_wrapped_titlekey, 0x10);
-    seal_titlekey(sealed_titlekey, 0x10, titlekey, 0x10);
-
-    p_sealed_key[0] = sealed_titlekey[0];
-    p_sealed_key[1] = sealed_titlekey[1];
-
-    /* smc_unwrap_rsa_oaep_wrapped_titlekey is done now. */
-    clear_user_smc_in_progress();
-    return 0;
+    return res;
 }
 
 uint32_t smc_unwrap_rsa_oaep_wrapped_titlekey(smc_args_t *args) {
@@ -616,7 +619,7 @@ uint32_t smc_read_write_register(smc_args_t *args) {
     }
     /* Check for PMC registers. */
     if (0x7000E400 <= address && address <= 0x7000EFFF) {
-        const uint8_t pmc_whitelist[0x28] = {
+        static const uint8_t pmc_whitelist[0x28] = {
             0xB9, 0xF9, 0x07, 0x00, 0x00, 0x00, 0x80, 0x03,
             0x00, 0x00, 0x00, 0x17, 0x00, 0xC4, 0x07, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x20, 0x00,
@@ -632,39 +635,83 @@ uint32_t smc_read_write_register(smc_args_t *args) {
         } else {
             return 2;
         }
-    } else if (exosphere_get_target_firmware() >= ATMOSPHERE_TARGET_FIRMWARE_400 && MMIO_GET_DEVICE_PA(MMIO_DEVID_MC) <= address &&
-               address < MMIO_GET_DEVICE_PA(MMIO_DEVID_MC) + MMIO_GET_DEVICE_SIZE(MMIO_DEVID_MC)) {
-        /* Memory Controller RW supported only on 4.0.0+ */
-        const uint8_t mc_whitelist[0x68] = {
-            0x9F, 0x31, 0x30, 0x00, 0xF0, 0xFF, 0xF7, 0x01,
-            0xCD, 0xFE, 0xC0, 0xFE, 0x00, 0x00, 0x00, 0x00,
-            0x03, 0x40, 0x73, 0x3E, 0x2F, 0x00, 0x00, 0x6E,
-            0x30, 0x05, 0x06, 0xB0, 0x71, 0xC8, 0x43, 0x04,
-            0x80, 0x1F, 0x08, 0x80, 0x03, 0x00, 0x0E, 0x00,
-            0x08, 0x00, 0xE0, 0x00, 0x0E, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x30, 0xF0, 0x03, 0x03, 0x30,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x31, 0x00, 0x40, 0x00, 0x00,
-            0x00, 0x03, 0x00, 0x00, 0xE4, 0xFF, 0xFF, 0x01,
-            0x00, 0x00, 0x00, 0x00, 0x0C, 0x00, 0xFE, 0x0F,
-            0x01, 0x00, 0x80, 0x00, 0x00, 0x08, 0x00, 0x00
-        };
-        uint32_t offset = (uint32_t)(address - 0x70019000);
-        uint32_t wl_ind = (offset >> 5);
-        /* If address is whitelisted, allow write. */
-        if (wl_ind < sizeof(mc_whitelist) && (mc_whitelist[wl_ind] & (1 << ((offset >> 2) & 0x7)))) {
-            p_mmio = (volatile uint32_t *)(MMIO_GET_DEVICE_ADDRESS(MMIO_DEVID_MC) + offset);
-        } else {
-            /* These addresses are not allowed by the whitelist. */
-            /* They correspond to SMMU DISABLE for the BPMP, and for APB-DMA. */
-            /* However, smcReadWriteRegister returns 0 for these addresses despite not actually performing the write. */
-            /* This is "probably" to fuck with hackers who got access to smcReadWriteRegister and are trying to get */
-            /* control of the BPMP for jamais vu etc., since there's no other reason to return 0 despite failure. */
-            if (address == 0x7001923C || address == 0x70019298) {
-                return 0;
+    } else {
+        if (exosphere_get_target_firmware() >= ATMOSPHERE_TARGET_FIRMWARE_500) {
+            static const uint8_t mc_whitelist_5x[0xD00/(sizeof(uint32_t) * 8)] = {
+                0x9F, 0x31, 0x30, 0x00, 0xF0, 0xFF, 0xF7, 0x01,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x03, 0x40, 0x73, 0x3E, 0x2F, 0x00, 0x00, 0x6E,
+                0x30, 0x05, 0x06, 0xB0, 0x71, 0xC8, 0x43, 0x04,
+                0x80, 0xFF, 0x08, 0x80, 0x03, 0x38, 0x8E, 0x1F,
+                0xC8, 0xFF, 0xFF, 0x00, 0x0E, 0x00, 0x00, 0x00,
+                0xF0, 0x1F, 0x00, 0x30, 0xF0, 0x03, 0x03, 0x30,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x31, 0x00, 0x40, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0xE4, 0xFF, 0xFF, 0x01,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF8, 0x0F,
+                0x01, 0x00, 0x80, 0x00, 0x00, 0x08, 0x00, 0x00
+            };
+            static const uint8_t mc01_whitelist_5x[0xC00/(sizeof(uint32_t) * 8)] = {
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0xCD, 0xFE, 0xC0, 0xFE, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x0C, 0x00, 0x06, 0x00,
+            };
+            static const struct {
+                uint32_t phys_addr;
+                uint32_t size;
+                uint64_t virt_addr;
+                const uint8_t *whitelist;
+            } register_whitelists[3] = {
+                { MMIO_GET_DEVICE_PA(MMIO_DEVID_MC),  sizeof(mc_whitelist_5x)   * (sizeof(uint32_t) * 8), MMIO_GET_DEVICE_ADDRESS(MMIO_DEVID_MC),    mc_whitelist_5x },
+                { MMIO_GET_DEVICE_PA(MMIO_DEVID_MC0), sizeof(mc01_whitelist_5x) * (sizeof(uint32_t) * 8), MMIO_GET_DEVICE_ADDRESS(MMIO_DEVID_MC0), mc01_whitelist_5x },
+                { MMIO_GET_DEVICE_PA(MMIO_DEVID_MC1), sizeof(mc01_whitelist_5x) * (sizeof(uint32_t) * 8), MMIO_GET_DEVICE_ADDRESS(MMIO_DEVID_MC1), mc01_whitelist_5x },
+            };
+            for (unsigned int which = 0; which < 3; which++) {
+                if (register_whitelists[which].phys_addr <= address && address < register_whitelists[which].phys_addr + register_whitelists[which].size) {
+                    uint32_t offset = (uint32_t)(address - register_whitelists[which].phys_addr);
+                    uint32_t wl_ind = (offset >> 5);
+                    /* If address is whitelisted, allow write. */
+                    if (register_whitelists[which].whitelist[wl_ind] & (1 << ((offset >> 2) & 0x7))) {
+                        p_mmio = (volatile uint32_t *)(register_whitelists[which].virt_addr + offset);
+                    }
+                    break;
+                }
             }
-            return 2;
+        } else if (exosphere_get_target_firmware() >= ATMOSPHERE_TARGET_FIRMWARE_400) {
+            if (MMIO_GET_DEVICE_PA(MMIO_DEVID_MC) <= address && address < MMIO_GET_DEVICE_PA(MMIO_DEVID_MC) + 0xD00) {
+                /* Memory Controller RW supported only on 4.0.0+ */
+                static const uint8_t mc_whitelist[0x68] = {
+                    0x9F, 0x31, 0x30, 0x00, 0xF0, 0xFF, 0xF7, 0x01,
+                    0xCD, 0xFE, 0xC0, 0xFE, 0x00, 0x00, 0x00, 0x00,
+                    0x03, 0x40, 0x73, 0x3E, 0x2F, 0x00, 0x00, 0x6E,
+                    0x30, 0x05, 0x06, 0xB0, 0x71, 0xC8, 0x43, 0x04,
+                    0x80, 0x1F, 0x08, 0x80, 0x03, 0x00, 0x0E, 0x00,
+                    0x08, 0x00, 0xE0, 0x00, 0x0E, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x30, 0xF0, 0x03, 0x03, 0x30,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x31, 0x00, 0x40, 0x00, 0x00,
+                    0x00, 0x03, 0x00, 0x00, 0xE4, 0xFF, 0xFF, 0x01,
+                    0x00, 0x00, 0x00, 0x00, 0x0C, 0x00, 0xFE, 0x0F,
+                    0x01, 0x00, 0x80, 0x00, 0x00, 0x08, 0x00, 0x00
+                };
+                uint32_t offset = (uint32_t)(address - MMIO_GET_DEVICE_PA(MMIO_DEVID_MC));
+                uint32_t wl_ind = (offset >> 5);
+                /* If address is whitelisted, allow write. */
+                if (mc_whitelist[wl_ind] & (1 << ((offset >> 2) & 0x7))) {
+                    p_mmio = (volatile uint32_t *)(MMIO_GET_DEVICE_ADDRESS(MMIO_DEVID_MC) + offset);
+                }
+            }
         }
     }
 
@@ -683,9 +730,16 @@ uint32_t smc_read_write_register(smc_args_t *args) {
         /* Return old value. */
         args->X[1] = old_value;
         return 0;
+    } else if (exosphere_get_target_firmware() >= ATMOSPHERE_TARGET_FIRMWARE_400 && (address == 0x7001923C || address == 0x70019298)) {
+        /* These addresses are not allowed by the whitelist. */
+        /* They correspond to SMMU DISABLE for the BPMP, and for APB-DMA. */
+        /* However, smcReadWriteRegister returns 0 for these addresses despite not actually performing the write. */
+        /* This is "probably" to fuck with hackers who got access to smcReadWriteRegister and are trying to get */
+        /* control of the BPMP for jamais vu etc., since there's no other reason to return 0 despite failure. */
+        return 0;
+    } else {
+        return 2;
     }
-
-    return 2;
 }
 
 

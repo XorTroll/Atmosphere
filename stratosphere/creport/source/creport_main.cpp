@@ -68,7 +68,7 @@ void __libnx_initheap(void) {
 }
 
 void __appInit(void) {
-    hos::SetVersionForLibnx();
+    hos::InitializeForStratosphere();
 
     sm::DoWithSession([&]() {
         R_ABORT_UNLESS(fsInitialize());
@@ -85,6 +85,10 @@ void __appExit(void) {
 static creport::CrashReport g_crash_report;
 
 int main(int argc, char **argv) {
+    /* Set thread name. */
+    os::SetThreadNamePointer(os::GetCurrentThread(), AMS_GET_SYSTEM_THREAD_NAME(creport, Main));
+    AMS_ASSERT(os::GetThreadPriority(os::GetCurrentThread()) == AMS_GET_SYSTEM_THREAD_PRIORITY(creport, Main));
+
     /* Validate arguments. */
     if (argc < 2) {
         return EXIT_FAILURE;
@@ -108,7 +112,14 @@ int main(int argc, char **argv) {
     g_crash_report.SaveReport();
 
     /* Try to terminate the process. */
-    {
+    if (hos::GetVersion() >= hos::Version_10_0_0) {
+        /* On 10.0.0+, use pgl to terminate. */
+        sm::ScopedServiceHolder<pgl::Initialize, pgl::Finalize> pgl_holder;
+        if (pgl_holder) {
+            pgl::TerminateProcess(crashed_pid);
+        }
+    } else {
+        /* On < 10.0.0, use ns:dev to terminate. */
         sm::ScopedServiceHolder<nsdevInitialize, nsdevExit> ns_holder;
         if (ns_holder) {
             nsdevTerminateProcess(static_cast<u64>(crashed_pid));
@@ -116,7 +127,7 @@ int main(int argc, char **argv) {
     }
 
     /* Don't fatal if we have extra info, or if we're 5.0.0+ and an application crashed. */
-    if (hos::GetVersion() >= hos::Version_500) {
+    if (hos::GetVersion() >= hos::Version_5_0_0) {
         if (g_crash_report.IsApplication()) {
             return EXIT_SUCCESS;
         }

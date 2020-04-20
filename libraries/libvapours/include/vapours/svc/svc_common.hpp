@@ -28,12 +28,20 @@ namespace ams::svc {
     using Handle = u32;
 #endif
 
-    static constexpr size_t MaxWaitSynchronizationHandleCount = 0x40;
+    enum {
+        HandleWaitMask = (1u << 30),
+    };
+
+    constexpr inline size_t MaxWaitSynchronizationHandleCount = 0x40;
+
+    constexpr inline s64 WaitInfinite = -1;
 
     enum PseudoHandle : Handle {
         CurrentThread  = 0xFFFF8000,
         CurrentProcess = 0xFFFF8001,
     };
+
+    constexpr inline Handle InvalidHandle = Handle(0);
 
     constexpr ALWAYS_INLINE bool operator==(const Handle &lhs, const PseudoHandle &rhs) {
         return static_cast<Handle>(lhs) == static_cast<Handle>(rhs);
@@ -55,7 +63,7 @@ namespace ams::svc {
         return handle == PseudoHandle::CurrentProcess || handle == PseudoHandle::CurrentThread;
     }
 
-#ifdef        ATMOSPHERE_ARCH_ARM64
+#if   defined(ATMOSPHERE_ARCH_ARM64)
 
 
     namespace lp64    { /* ... */ }
@@ -72,7 +80,7 @@ namespace ams::svc {
         using namespace ::ams::svc::aarch64::ilp32;
     #endif
 
-#elif defined ATMOSPHERE_ARCH_ARM
+#elif defined(ATMOSPHERE_ARCH_ARM)
 
     namespace ilp32   { /* ... */ }
     namespace aarch32 { /* ... */ }

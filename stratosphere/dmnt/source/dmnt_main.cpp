@@ -15,6 +15,7 @@
  */
 #include "dmnt_service.hpp"
 #include "cheat/dmnt_cheat_service.hpp"
+#include "cheat/impl/dmnt_cheat_api.hpp"
 
 extern "C" {
     extern u32 __start__;
@@ -59,14 +60,14 @@ void __libnx_initheap(void) {
 }
 
 void __appInit(void) {
-    hos::SetVersionForLibnx();
+    hos::InitializeForStratosphere();
 
     sm::DoWithSession([&]() {
         R_ABORT_UNLESS(pmdmntInitialize());
         R_ABORT_UNLESS(pminfoInitialize());
         R_ABORT_UNLESS(ldrDmntInitialize());
         /* TODO: We provide this on every sysver via ro. Do we need a shim? */
-        if (hos::GetVersion() >= hos::Version_300) {
+        if (hos::GetVersion() >= hos::Version_3_0_0) {
             R_ABORT_UNLESS(roDmntInitialize());
         }
         R_ABORT_UNLESS(nsdevInitialize());
@@ -122,12 +123,19 @@ namespace {
     constexpr size_t ThreadStackSize = 0x4000;
     alignas(os::MemoryPageSize) u8 g_extra_thread_stacks[NumExtraThreads][ThreadStackSize];
 
-    os::Thread g_extra_threads[NumExtraThreads];
+    os::ThreadType g_extra_threads[NumExtraThreads];
 
 }
 
 int main(int argc, char **argv)
 {
+    /* Set thread name. */
+    os::SetThreadNamePointer(os::GetCurrentThread(), AMS_GET_SYSTEM_THREAD_NAME(dmnt, Main));
+    AMS_ASSERT(os::GetThreadPriority(os::GetCurrentThread()) == AMS_GET_SYSTEM_THREAD_PRIORITY(dmnt, Main));
+
+    /* Initialize the cheat manager. */
+    ams::dmnt::cheat::impl::InitializeCheatManager();
+
     /* Create services. */
     /* TODO: Implement rest of dmnt:- in ams.tma development branch. */
     /* R_ABORT_UNLESS((g_server_manager.RegisterServer<dmnt::cheat::CheatService>(DebugMonitorServiceName, DebugMonitorMaxSessions))); */
@@ -139,16 +147,17 @@ int main(int argc, char **argv)
 
         /* Initialize threads. */
         if constexpr (NumExtraThreads > 0) {
-            const u32 priority = os::GetCurrentThreadPriority();
+            static_assert(AMS_GET_SYSTEM_THREAD_PRIORITY(dmnt, Main) == AMS_GET_SYSTEM_THREAD_PRIORITY(dmnt, Ipc));
             for (size_t i = 0; i < NumExtraThreads; i++) {
-                R_ABORT_UNLESS(g_extra_threads[i].Initialize(LoopServerThread, nullptr, g_extra_thread_stacks[i], ThreadStackSize, priority));
+                R_ABORT_UNLESS(os::CreateThread(std::addressof(g_extra_threads[i]), LoopServerThread, nullptr, g_extra_thread_stacks[i], ThreadStackSize, AMS_GET_SYSTEM_THREAD_PRIORITY(dmnt, Ipc)));
+                os::SetThreadNamePointer(std::addressof(g_extra_threads[i]), AMS_GET_SYSTEM_THREAD_NAME(dmnt, Ipc));
             }
         }
 
         /* Start extra threads. */
         if constexpr (NumExtraThreads > 0) {
             for (size_t i = 0; i < NumExtraThreads; i++) {
-                R_ABORT_UNLESS(g_extra_threads[i].Start());
+                os::StartThread(std::addressof(g_extra_threads[i]));
             }
         }
 
@@ -158,7 +167,7 @@ int main(int argc, char **argv)
         /* Wait for extra threads to finish. */
         if constexpr (NumExtraThreads > 0) {
             for (size_t i = 0; i < NumExtraThreads; i++) {
-                R_ABORT_UNLESS(g_extra_threads[i].Join());
+                os::WaitThread(std::addressof(g_extra_threads[i]));
             }
         }
     }

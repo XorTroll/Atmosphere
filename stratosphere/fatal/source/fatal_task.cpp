@@ -28,9 +28,7 @@ namespace ams::fatal::srv {
         class TaskThread {
             NON_COPYABLE(TaskThread);
             private:
-                static constexpr int TaskThreadPriority = 15;
-            private:
-                os::Thread thread;
+                os::ThreadType thread;
             private:
                 static void RunTaskImpl(void *arg) {
                     ITask *task = reinterpret_cast<ITask *>(arg);
@@ -42,8 +40,9 @@ namespace ams::fatal::srv {
             public:
                 TaskThread() { /* ... */ }
                 void StartTask(ITask *task) {
-                    R_ABORT_UNLESS(this->thread.Initialize(&RunTaskImpl, task, task->GetStack(), task->GetStackSize(), TaskThreadPriority));
-                    R_ABORT_UNLESS(this->thread.Start());
+                    R_ABORT_UNLESS(os::CreateThread(std::addressof(this->thread), RunTaskImpl, task, task->GetStack(), task->GetStackSize(), AMS_GET_SYSTEM_THREAD_PRIORITY(fatalsrv, FatalTaskThread), 3));
+                    os::SetThreadNamePointer(std::addressof(this->thread), AMS_GET_SYSTEM_THREAD_NAME(fatalsrv, FatalTaskThread));
+                    os::StartThread(std::addressof(this->thread));
                 }
         };
 

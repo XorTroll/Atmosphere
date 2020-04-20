@@ -39,7 +39,7 @@ namespace ams::spl::impl {
 
         /* Max Keyslots helper. */
         inline size_t GetMaxKeyslots() {
-            return (hos::GetVersion() >= hos::Version_600) ? MaxAesKeyslots : MaxAesKeyslotsDeprecated;
+            return (hos::GetVersion() >= hos::Version_6_0_0) ? MaxAesKeyslots : MaxAesKeyslotsDeprecated;
         }
 
         /* Type definitions. */
@@ -97,14 +97,14 @@ namespace ams::spl::impl {
 
         /* Global variables. */
         CtrDrbg g_drbg;
-        os::InterruptEvent g_se_event;
-        os::SystemEvent g_se_keyslot_available_event;
+        os::InterruptEventType g_se_event;
+        os::SystemEventType g_se_keyslot_available_event;
 
         Handle g_se_das_hnd;
         u32 g_se_mapped_work_buffer_addr;
         alignas(os::MemoryPageSize) u8 g_work_buffer[2 * WorkBufferSizeMax];
 
-        os::Mutex g_async_op_lock;
+        os::Mutex g_async_op_lock(false);
 
         const void *g_keyslot_owners[MaxAesKeyslots];
         BootReasonValue g_boot_reason;
@@ -130,10 +130,10 @@ namespace ams::spl::impl {
         void InitializeSeEvents() {
             u64 irq_num;
             AMS_ABORT_UNLESS(smc::GetConfig(&irq_num, 1, SplConfigItem_SecurityEngineIrqNumber) == smc::Result::Success);
-            R_ABORT_UNLESS(g_se_event.Initialize(irq_num));
+            os::InitializeInterruptEvent(std::addressof(g_se_event), irq_num, os::EventClearMode_AutoClear);
 
-            R_ABORT_UNLESS(g_se_keyslot_available_event.InitializeAsInterProcessEvent());
-            g_se_keyslot_available_event.Signal();
+            R_ABORT_UNLESS(os::CreateSystemEvent(std::addressof(g_se_keyslot_available_event), os::EventClearMode_AutoClear, true));
+            os::SignalSystemEvent(std::addressof(g_se_keyslot_available_event));
         }
 
         void InitializeDeviceAddressSpace() {
@@ -173,7 +173,7 @@ namespace ams::spl::impl {
 
         /* Internal async implementation functionality. */
         void WaitSeOperationComplete() {
-            g_se_event.Wait();
+            os::WaitInterruptEvent(std::addressof(g_se_event));
         }
 
         smc::Result WaitCheckStatus(smc::AsyncOperationKey op_key) {
@@ -203,7 +203,7 @@ namespace ams::spl::impl {
         /* Internal Keyslot utility. */
         Result ValidateAesKeyslot(u32 keyslot, const void *owner) {
             R_UNLESS(keyslot < GetMaxKeyslots(), spl::ResultInvalidKeyslot());
-            R_UNLESS((g_keyslot_owners[keyslot] == owner || hos::GetVersion() == hos::Version_100), spl::ResultInvalidKeyslot());
+            R_UNLESS((g_keyslot_owners[keyslot] == owner || hos::GetVersion() == hos::Version_1_0_0), spl::ResultInvalidKeyslot());
             return ResultSuccess();
         }
 
@@ -262,7 +262,7 @@ namespace ams::spl::impl {
 
             armDCacheFlush(layout, sizeof(*layout));
             smc::Result smc_res;
-            if (hos::GetVersion() >= hos::Version_500) {
+            if (hos::GetVersion() >= hos::Version_5_0_0) {
                 smc_res = smc::DecryptOrImportRsaPrivateKey(layout->data, src_size, access_key, key_source, static_cast<smc::DecryptOrImportMode>(option));
             } else {
                 smc_res = smc::ImportSecureExpModKey(layout->data, src_size, access_key, key_source, option);
@@ -582,7 +582,7 @@ namespace ams::spl::impl {
     }
 
     Result AllocateAesKeyslot(u32 *out_keyslot, const void *owner) {
-        if (hos::GetVersion() <= hos::Version_100) {
+        if (hos::GetVersion() <= hos::Version_1_0_0) {
             /* On 1.0.0, keyslots were kind of a wild west. */
             *out_keyslot = 0;
             return ResultSuccess();
@@ -596,12 +596,12 @@ namespace ams::spl::impl {
             }
         }
 
-        g_se_keyslot_available_event.Reset();
+        os::ClearSystemEvent(std::addressof(g_se_keyslot_available_event));
         return spl::ResultOutOfKeyslots();
     }
 
     Result FreeAesKeyslot(u32 keyslot, const void *owner) {
-        if (hos::GetVersion() <= hos::Version_100) {
+        if (hos::GetVersion() <= hos::Version_1_0_0) {
             /* On 1.0.0, keyslots were kind of a wild west. */
             return ResultSuccess();
         }
@@ -616,7 +616,7 @@ namespace ams::spl::impl {
             smc::LoadAesKey(keyslot, access_key, key_source);
         }
         g_keyslot_owners[keyslot] = nullptr;
-        g_se_keyslot_available_event.Signal();
+        os::SignalSystemEvent(std::addressof(g_se_keyslot_available_event));
         return ResultSuccess();
     }
 
@@ -636,7 +636,7 @@ namespace ams::spl::impl {
 
         smc::Result smc_res;
         size_t copy_size = 0;
-        if (hos::GetVersion() >= hos::Version_500) {
+        if (hos::GetVersion() >= hos::Version_5_0_0) {
             copy_size = std::min(dst_size, src_size - RsaPrivateKeyMetaSize);
             smc_res = smc::DecryptOrImportRsaPrivateKey(layout->data, src_size, access_key, key_source, static_cast<smc::DecryptOrImportMode>(option));
         } else {
@@ -663,7 +663,7 @@ namespace ams::spl::impl {
 
     /* ES */
     Result ImportEsKey(const void *src, size_t src_size, const AccessKey &access_key, const KeySource &key_source, u32 option) {
-        if (hos::GetVersion() >= hos::Version_500) {
+        if (hos::GetVersion() >= hos::Version_5_0_0) {
             return ImportSecureExpModKey(src, src_size, access_key, key_source, option);
         } else {
             struct ImportEsKeyLayout {
@@ -792,7 +792,7 @@ namespace ams::spl::impl {
     }
 
     Handle GetAesKeyslotAvailableEventHandle() {
-        return g_se_keyslot_available_event.GetReadableHandle();
+        return os::GetReadableHandleOfSystemEvent(std::addressof(g_se_keyslot_available_event));
     }
 
 }

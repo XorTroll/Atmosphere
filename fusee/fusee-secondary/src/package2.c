@@ -87,7 +87,7 @@ void package2_rebuild_and_copy(package2_header_t *package2, uint32_t target_firm
     }
 
     /* Perform any patches we want to the NX kernel. */
-    package2_patch_kernel(kernel, &kernel_size, is_sd_kernel, (void *)&orig_ini1);
+    package2_patch_kernel(kernel, &kernel_size, is_sd_kernel, (void *)&orig_ini1, target_firmware);
 
     /* Ensure we know where embedded INI is if present, and we don't if not. */
     if ((target_firmware < ATMOSPHERE_TARGET_FIRMWARE_800 && orig_ini1 != NULL) ||
@@ -232,7 +232,7 @@ static bool package2_validate_metadata(package2_meta_t *metadata, uint8_t data[]
 
     /* Perform version checks. */
     /* We will be compatible with all package2s released before current, but not newer ones. */
-    if (metadata->version_max >= PACKAGE2_MINVER_THEORETICAL && metadata->version_min < PACKAGE2_MAXVER_910_CURRENT) {
+    if (metadata->version_max >= PACKAGE2_MINVER_THEORETICAL && metadata->version_min < PACKAGE2_MAXVER_1000_CURRENT) {
         return true;
     }
 

@@ -19,17 +19,17 @@ namespace ams::sf::hipc {
 
     namespace {
 
-        NX_INLINE Result ReceiveImpl(Handle session_handle, void *message_buf, size_t message_buf_size) {
+        ALWAYS_INLINE Result ReceiveImpl(Handle session_handle, void *message_buf, size_t message_buf_size) {
             s32 unused_index;
             if (message_buf == armGetTls()) {
                 /* Consider: AMS_ABORT_UNLESS(message_buf_size == TlsMessageBufferSize); */
-                return svcReplyAndReceive(&unused_index, &session_handle, 1, INVALID_HANDLE, U64_MAX);
+                return svcReplyAndReceive(&unused_index, &session_handle, 1, INVALID_HANDLE, std::numeric_limits<u64>::max());
             } else {
-                return svcReplyAndReceiveWithUserBuffer(&unused_index, message_buf, message_buf_size, &session_handle, 1, INVALID_HANDLE, U64_MAX);
+                return svcReplyAndReceiveWithUserBuffer(&unused_index, message_buf, message_buf_size, &session_handle, 1, INVALID_HANDLE, std::numeric_limits<u64>::max());
             }
         }
 
-        NX_INLINE Result ReplyImpl(Handle session_handle, void *message_buf, size_t message_buf_size) {
+        ALWAYS_INLINE Result ReplyImpl(Handle session_handle, void *message_buf, size_t message_buf_size) {
             s32 unused_index;
             if (message_buf == armGetTls()) {
                 /* Consider: AMS_ABORT_UNLESS(message_buf_size == TlsMessageBufferSize); */
@@ -39,6 +39,14 @@ namespace ams::sf::hipc {
             }
         }
 
+    }
+
+    void AttachWaitableHolderForAccept(os::WaitableHolderType *holder, Handle port) {
+        return os::InitializeWaitableHolder(holder, port);
+    }
+
+    void AttachWaitableHolderForReply(os::WaitableHolderType *holder, Handle request) {
+        return os::InitializeWaitableHolder(holder, request);
     }
 
     Result Receive(ReceiveResult *out_recv_result, Handle session_handle, const cmif::PointerAndSize &message_buffer) {

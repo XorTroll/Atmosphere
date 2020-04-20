@@ -13,11 +13,12 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
- 
+
 #ifndef EXOSPHERE_TITLEKEY_H
 #define EXOSPHERE_TITLEKEY_H
 
 #include <stdint.h>
+#include "rsa_common.h"
 
 #define TITLEKEY_TYPE_MAX 0x1
 

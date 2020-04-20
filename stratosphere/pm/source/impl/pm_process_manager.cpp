@@ -34,27 +34,7 @@ namespace ams::pm::impl {
             u32 flags;
         };
 
-        enum LaunchFlags {
-            LaunchFlags_None                = 0,
-            LaunchFlags_SignalOnExit        = (1 << 0),
-            LaunchFlags_SignalOnStart       = (1 << 1),
-            LaunchFlags_SignalOnException   = (1 << 2),
-            LaunchFlags_SignalOnDebugEvent  = (1 << 3),
-            LaunchFlags_StartSuspended      = (1 << 4),
-            LaunchFlags_DisableAslr         = (1 << 5),
-        };
-
-        enum LaunchFlagsDeprecated {
-            LaunchFlagsDeprecated_None                = 0,
-            LaunchFlagsDeprecated_SignalOnExit        = (1 << 0),
-            LaunchFlagsDeprecated_StartSuspended      = (1 << 1),
-            LaunchFlagsDeprecated_SignalOnException   = (1 << 2),
-            LaunchFlagsDeprecated_DisableAslr         = (1 << 3),
-            LaunchFlagsDeprecated_SignalOnDebugEvent  = (1 << 4),
-            LaunchFlagsDeprecated_SignalOnStart       = (1 << 5),
-        };
-
-#define GET_FLAG_MASK(flag) (hos_version >= hos::Version_500 ? static_cast<u32>(LaunchFlags_##flag) : static_cast<u32>(LaunchFlagsDeprecated_##flag))
+#define GET_FLAG_MASK(flag) (hos_version >= hos::Version_5_0_0 ? static_cast<u32>(LaunchFlags_##flag) : static_cast<u32>(LaunchFlagsDeprecated_##flag))
 
         inline bool ShouldSignalOnExit(u32 launch_flags) {
             const auto hos_version = hos::GetVersion();
@@ -63,7 +43,7 @@ namespace ams::pm::impl {
 
         inline bool ShouldSignalOnStart(u32 launch_flags) {
             const auto hos_version = hos::GetVersion();
-            if (hos_version < hos::Version_200) {
+            if (hos_version < hos::Version_2_0_0) {
                 return false;
             }
             return launch_flags & GET_FLAG_MASK(SignalOnStart);
@@ -91,45 +71,6 @@ namespace ams::pm::impl {
 
 #undef GET_FLAG_MASK
 
-        enum class ProcessEvent {
-            None           = 0,
-            Exited         = 1,
-            Started        = 2,
-            Exception      = 3,
-            DebugRunning   = 4,
-            DebugSuspended = 5,
-        };
-
-        enum class ProcessEventDeprecated {
-            None           = 0,
-            Exception      = 1,
-            Exited         = 2,
-            DebugRunning   = 3,
-            DebugSuspended = 4,
-            Started        = 5,
-        };
-
-        inline u32 GetProcessEventValue(ProcessEvent event) {
-            if (hos::GetVersion() >= hos::Version_500) {
-                return static_cast<u32>(event);
-            }
-            switch (event) {
-                case ProcessEvent::None:
-                    return static_cast<u32>(ProcessEventDeprecated::None);
-                case ProcessEvent::Exited:
-                    return static_cast<u32>(ProcessEventDeprecated::Exited);
-                case ProcessEvent::Started:
-                    return static_cast<u32>(ProcessEventDeprecated::Started);
-                case ProcessEvent::Exception:
-                    return static_cast<u32>(ProcessEventDeprecated::Exception);
-                case ProcessEvent::DebugRunning:
-                    return static_cast<u32>(ProcessEventDeprecated::DebugRunning);
-                case ProcessEvent::DebugSuspended:
-                    return static_cast<u32>(ProcessEventDeprecated::DebugSuspended);
-                AMS_UNREACHABLE_DEFAULT_CASE();
-            }
-        }
-
         template<size_t MaxProcessInfos>
         class ProcessInfoAllocator {
             NON_COPYABLE(ProcessInfoAllocator);
@@ -144,7 +85,7 @@ namespace ams::pm::impl {
                     return process_info - GetPointer(this->process_info_storages[0]);
                 }
             public:
-                constexpr ProcessInfoAllocator() {
+                constexpr ProcessInfoAllocator() : lock(false) {
                     std::memset(this->process_info_storages, 0, sizeof(this->process_info_storages));
                     std::memset(this->process_info_allocated, 0, sizeof(this->process_info_allocated));
                 }
@@ -176,9 +117,8 @@ namespace ams::pm::impl {
         /* Process Tracking globals. */
         void ProcessTrackingMain(void *arg);
 
-        constexpr size_t ProcessTrackThreadStackSize = 0x4000;
-        constexpr int    ProcessTrackThreadPriority  = 0x15;
-        os::StaticThread<ProcessTrackThreadStackSize> g_process_track_thread(&ProcessTrackingMain, nullptr, ProcessTrackThreadPriority);
+        os::ThreadType g_process_track_thread;
+        alignas(os::ThreadStackAlignment) u8 g_process_track_thread_stack[16_KB];
 
         /* Process lists. */
         ProcessList g_process_list;
@@ -190,15 +130,15 @@ namespace ams::pm::impl {
         ProcessInfoAllocator<MaxProcessCount> g_process_info_allocator;
 
         /* Global events. */
-        os::SystemEvent g_process_event;
-        os::SystemEvent g_hook_to_create_process_event;
-        os::SystemEvent g_hook_to_create_application_process_event;
-        os::SystemEvent g_boot_finished_event;
+        os::SystemEventType g_process_event;
+        os::SystemEventType g_hook_to_create_process_event;
+        os::SystemEventType g_hook_to_create_application_process_event;
+        os::SystemEventType g_boot_finished_event;
 
         /* Process Launch synchronization globals. */
-        os::Mutex g_launch_program_lock;
-        os::Event g_process_launch_start_event;
-        os::Event g_process_launch_finish_event;
+        os::Mutex g_launch_program_lock(false);
+        os::Event g_process_launch_start_event(os::EventClearMode_AutoClear);
+        os::Event g_process_launch_finish_event(os::EventClearMode_AutoClear);
         Result g_process_launch_result = ResultSuccess();
         LaunchProcessArgs g_process_launch_args = {};
 
@@ -207,7 +147,7 @@ namespace ams::pm::impl {
         std::atomic<bool> g_application_hook;
 
         /* Forward declarations. */
-        Result LaunchProcess(os::WaitableManager &waitable_manager, const LaunchProcessArgs &args);
+        Result LaunchProcess(os::WaitableManagerType &waitable_manager, const LaunchProcessArgs &args);
         void   OnProcessSignaled(ProcessListAccessor &list, ProcessInfo *process_info);
 
         /* Helpers. */
@@ -215,12 +155,14 @@ namespace ams::pm::impl {
             /* This is the main loop of the process tracking thread. */
 
             /* Setup waitable manager. */
-            os::WaitableManager process_waitable_manager;
-            os::WaitableHolder start_event_holder(&g_process_launch_start_event);
-            process_waitable_manager.LinkWaitableHolder(&start_event_holder);
+            os::WaitableManagerType process_waitable_manager;
+            os::WaitableHolderType start_event_holder;
+            os::InitializeWaitableManager(std::addressof(process_waitable_manager));
+            os::InitializeWaitableHolder(std::addressof(start_event_holder), g_process_launch_start_event.GetBase());
+            os::LinkWaitableHolder(std::addressof(process_waitable_manager), std::addressof(start_event_holder));
 
             while (true) {
-                auto signaled_holder = process_waitable_manager.WaitAny();
+                auto signaled_holder = os::WaitAny(std::addressof(process_waitable_manager));
                 if (signaled_holder == &start_event_holder) {
                     /* Launch start event signaled. */
                     /* TryWait will clear signaled, preventing duplicate notifications. */
@@ -231,7 +173,7 @@ namespace ams::pm::impl {
                 } else {
                     /* Some process was signaled. */
                     ProcessListAccessor list(g_process_list);
-                    OnProcessSignaled(list, reinterpret_cast<ProcessInfo *>(signaled_holder->GetUserData()));
+                    OnProcessSignaled(list, reinterpret_cast<ProcessInfo *>(os::GetWaitableHolderUserData(signaled_holder)));
                 }
             }
         }
@@ -239,7 +181,7 @@ namespace ams::pm::impl {
         inline u32 GetLoaderCreateProcessFlags(u32 launch_flags) {
             u32 ldr_flags = 0;
 
-            if (ShouldSignalOnException(launch_flags) || (hos::GetVersion() >= hos::Version_200 && !ShouldStartSuspended(launch_flags))) {
+            if (ShouldSignalOnException(launch_flags) || (hos::GetVersion() >= hos::Version_2_0_0 && !ShouldStartSuspended(launch_flags))) {
                 ldr_flags |= ldr::CreateProcessFlag_EnableDebug;
             }
             if (ShouldDisableAslr(launch_flags)) {
@@ -263,7 +205,7 @@ namespace ams::pm::impl {
 
         Result StartProcess(ProcessInfo *process_info, const ldr::ProgramInfo *program_info) {
             R_TRY(svcStartProcess(process_info->GetHandle(), program_info->main_thread_priority, program_info->default_cpu_id, program_info->main_thread_stack_size));
-            process_info->SetState(ProcessState_Running);
+            process_info->SetState(svc::ProcessState_Running);
             return ResultSuccess();
         }
 
@@ -275,13 +217,13 @@ namespace ams::pm::impl {
             g_process_info_allocator.FreeProcessInfo(process_info);
         }
 
-        Result LaunchProcess(os::WaitableManager &waitable_manager, const LaunchProcessArgs &args) {
+        Result LaunchProcess(os::WaitableManagerType &waitable_manager, const LaunchProcessArgs &args) {
             /* Get Program Info. */
             ldr::ProgramInfo program_info;
             cfg::OverrideStatus override_status;
             R_TRY(ldr::pm::AtmosphereGetProgramInfo(&program_info, &override_status, args.location));
             const bool is_application = (program_info.flags & ldr::ProgramInfoFlag_ApplicationTypeMask) == ldr::ProgramInfoFlag_Application;
-            const bool allow_debug    = (program_info.flags & ldr::ProgramInfoFlag_AllowDebug) || hos::GetVersion() < hos::Version_200;
+            const bool allow_debug    = (program_info.flags & ldr::ProgramInfoFlag_AllowDebug) || hos::GetVersion() < hos::Version_2_0_0;
 
             /* Ensure we only try to run one application. */
             R_UNLESS(!is_application || !HasApplicationProcess(), pm::ResultApplicationRunning());
@@ -351,10 +293,10 @@ namespace ams::pm::impl {
 
             /* Process hooks/signaling. */
             if (location.program_id == g_program_id_hook) {
-                g_hook_to_create_process_event.Signal();
+                os::SignalSystemEvent(std::addressof(g_hook_to_create_process_event));
                 g_program_id_hook = ncm::InvalidProgramId;
             } else if (is_application && g_application_hook) {
-                g_hook_to_create_application_process_event.Signal();
+                os::SignalSystemEvent(std::addressof(g_hook_to_create_application_process_event));
                 g_application_hook = false;
             } else if (!ShouldStartSuspended(args.flags)) {
                 R_TRY(StartProcess(process_info, &program_info));
@@ -372,55 +314,55 @@ namespace ams::pm::impl {
             svcResetSignal(process_info->GetHandle());
 
             /* Update the process's state. */
-            const ProcessState old_state = process_info->GetState();
+            const svc::ProcessState old_state = process_info->GetState();
             {
-                u64 tmp = 0;
-                R_ABORT_UNLESS(svcGetProcessInfo(&tmp, process_info->GetHandle(), ProcessInfoType_ProcessState));
-                process_info->SetState(static_cast<ProcessState>(tmp));
+                s64 tmp = 0;
+                R_ABORT_UNLESS(svc::GetProcessInfo(&tmp, process_info->GetHandle(), svc::ProcessInfoType_ProcessState));
+                process_info->SetState(static_cast<svc::ProcessState>(tmp));
             }
-            const ProcessState new_state = process_info->GetState();
+            const svc::ProcessState new_state = process_info->GetState();
 
             /* If we're transitioning away from crashed, clear waiting attached. */
-            if (old_state == ProcessState_Crashed && new_state != ProcessState_Crashed) {
+            if (old_state == svc::ProcessState_Crashed && new_state != svc::ProcessState_Crashed) {
                 process_info->ClearExceptionWaitingAttach();
             }
 
             switch (new_state) {
-                case ProcessState_Created:
-                case ProcessState_CreatedAttached:
-                case ProcessState_Exiting:
+                case svc::ProcessState_Created:
+                case svc::ProcessState_CreatedAttached:
+                case svc::ProcessState_Terminating:
                     break;
-                case ProcessState_Running:
+                case svc::ProcessState_Running:
                     if (process_info->ShouldSignalOnDebugEvent()) {
                         process_info->ClearSuspended();
                         process_info->SetSuspendedStateChanged();
-                        g_process_event.Signal();
-                    } else if (hos::GetVersion() >= hos::Version_200 && process_info->ShouldSignalOnStart()) {
+                        os::SignalSystemEvent(std::addressof(g_process_event));
+                    } else if (hos::GetVersion() >= hos::Version_2_0_0 && process_info->ShouldSignalOnStart()) {
                         process_info->SetStartedStateChanged();
                         process_info->ClearSignalOnStart();
-                        g_process_event.Signal();
+                        os::SignalSystemEvent(std::addressof(g_process_event));
                     }
                     break;
-                case ProcessState_Crashed:
+                case svc::ProcessState_Crashed:
                     process_info->SetExceptionOccurred();
-                    g_process_event.Signal();
+                    os::SignalSystemEvent(std::addressof(g_process_event));
                     break;
-                case ProcessState_RunningAttached:
+                case svc::ProcessState_RunningAttached:
                     if (process_info->ShouldSignalOnDebugEvent()) {
                         process_info->ClearSuspended();
                         process_info->SetSuspendedStateChanged();
-                        g_process_event.Signal();
+                        os::SignalSystemEvent(std::addressof(g_process_event));
                     }
                     break;
-                case ProcessState_Exited:
+                case svc::ProcessState_Terminated:
                     /* Free process resources, unlink from waitable manager. */
                     process_info->Cleanup();
 
-                    if (hos::GetVersion() < hos::Version_500 && process_info->ShouldSignalOnExit()) {
-                        g_process_event.Signal();
+                    if (hos::GetVersion() < hos::Version_5_0_0 && process_info->ShouldSignalOnExit()) {
+                        os::SignalSystemEvent(std::addressof(g_process_event));
                     } else {
                         /* Handle the case where we need to keep the process alive some time longer. */
-                        if (hos::GetVersion() >= hos::Version_500 && process_info->ShouldSignalOnExit()) {
+                        if (hos::GetVersion() >= hos::Version_5_0_0 && process_info->ShouldSignalOnExit()) {
                             /* Remove from the living list. */
                             list->Remove(process_info);
 
@@ -431,18 +373,18 @@ namespace ams::pm::impl {
                             }
 
                             /* Signal. */
-                            g_process_event.Signal();
+                            os::SignalSystemEvent(std::addressof(g_process_event));
                         } else {
                             /* Actually delete process. */
                             CleanupProcessInfo(list, process_info);
                         }
                     }
                     break;
-                case ProcessState_DebugSuspended:
+                case svc::ProcessState_DebugBreak:
                     if (process_info->ShouldSignalOnDebugEvent()) {
                         process_info->SetSuspended();
                         process_info->SetSuspendedStateChanged();
-                        g_process_event.Signal();
+                        os::SignalSystemEvent(std::addressof(g_process_event));
                     }
                     break;
             }
@@ -453,16 +395,20 @@ namespace ams::pm::impl {
     /* Initialization. */
     Result InitializeProcessManager() {
         /* Create events. */
-        R_ABORT_UNLESS(g_process_event.InitializeAsInterProcessEvent());
-        R_ABORT_UNLESS(g_hook_to_create_process_event.InitializeAsInterProcessEvent());
-        R_ABORT_UNLESS(g_hook_to_create_application_process_event.InitializeAsInterProcessEvent());
-        R_ABORT_UNLESS(g_boot_finished_event.InitializeAsInterProcessEvent());
+        R_ABORT_UNLESS(os::CreateSystemEvent(std::addressof(g_process_event),                            os::EventClearMode_AutoClear, true));
+        R_ABORT_UNLESS(os::CreateSystemEvent(std::addressof(g_hook_to_create_process_event),             os::EventClearMode_AutoClear, true));
+        R_ABORT_UNLESS(os::CreateSystemEvent(std::addressof(g_hook_to_create_application_process_event), os::EventClearMode_AutoClear, true));
+        R_ABORT_UNLESS(os::CreateSystemEvent(std::addressof(g_boot_finished_event),                      os::EventClearMode_AutoClear, true));
 
         /* Initialize resource limits. */
         R_TRY(resource::InitializeResourceManager());
 
+        /* Create thread. */
+        R_ABORT_UNLESS(os::CreateThread(std::addressof(g_process_track_thread), ProcessTrackingMain, nullptr, g_process_track_thread_stack, sizeof(g_process_track_thread_stack), AMS_GET_SYSTEM_THREAD_PRIORITY(pm, ProcessTrack)));
+        os::SetThreadNamePointer(std::addressof(g_process_track_thread), AMS_GET_SYSTEM_THREAD_NAME(pm, ProcessTrack));
+
         /* Start thread. */
-        R_ABORT_UNLESS(g_process_track_thread.Start());
+        os::StartThread(std::addressof(g_process_track_thread));
 
         return ResultSuccess();
     }
@@ -515,7 +461,7 @@ namespace ams::pm::impl {
     }
 
     Result GetProcessEventHandle(Handle *out) {
-        *out = g_process_event.GetReadableHandle();
+        *out = os::GetReadableHandleOfSystemEvent(std::addressof(g_process_event));
         return ResultSuccess();
     }
 
@@ -535,7 +481,7 @@ namespace ams::pm::impl {
                 if (process.HasSuspendedStateChanged()) {
                     process.ClearSuspendedStateChanged();
                     if (process.IsSuspended()) {
-                        out->event = GetProcessEventValue(ProcessEvent::DebugSuspended);
+                        out->event = GetProcessEventValue(ProcessEvent::DebugBreak);
                     } else {
                         out->event = GetProcessEventValue(ProcessEvent::DebugRunning);
                     }
@@ -548,7 +494,7 @@ namespace ams::pm::impl {
                     out->process_id = process.GetProcessId();
                     return ResultSuccess();
                 }
-                if (hos::GetVersion() < hos::Version_500 && process.ShouldSignalOnExit() && process.HasExited()) {
+                if (hos::GetVersion() < hos::Version_5_0_0 && process.ShouldSignalOnExit() && process.HasTerminated()) {
                     out->event = GetProcessEventValue(ProcessEvent::Exited);
                     out->process_id = process.GetProcessId();
                     return ResultSuccess();
@@ -557,7 +503,7 @@ namespace ams::pm::impl {
         }
 
         /* Check for event from exited process. */
-        if (hos::GetVersion() >= hos::Version_500) {
+        if (hos::GetVersion() >= hos::Version_5_0_0) {
             ProcessListAccessor dead_list(g_dead_process_list);
 
             if (!dead_list->empty()) {
@@ -579,8 +525,8 @@ namespace ams::pm::impl {
         ProcessListAccessor list(g_process_list);
 
         auto process_info = list->Find(process_id);
-        R_UNLESS(process_info != nullptr,   pm::ResultProcessNotFound());
-        R_UNLESS(process_info->HasExited(), pm::ResultNotExited());
+        R_UNLESS(process_info != nullptr,       pm::ResultProcessNotFound());
+        R_UNLESS(process_info->HasTerminated(), pm::ResultNotTerminated());
 
         CleanupProcessInfo(list, process_info);
         return ResultSuccess();
@@ -670,7 +616,7 @@ namespace ams::pm::impl {
             R_UNLESS(g_program_id_hook.compare_exchange_strong(old_value, program_id), pm::ResultDebugHookInUse());
         }
 
-        *out_hook = g_hook_to_create_process_event.GetReadableHandle();
+        *out_hook = os::GetReadableHandleOfSystemEvent(std::addressof(g_hook_to_create_process_event));
         return ResultSuccess();
     }
 
@@ -682,7 +628,7 @@ namespace ams::pm::impl {
             R_UNLESS(g_application_hook.compare_exchange_strong(old_value, true), pm::ResultDebugHookInUse());
         }
 
-        *out_hook = g_hook_to_create_application_process_event.GetReadableHandle();
+        *out_hook = os::GetReadableHandleOfSystemEvent(std::addressof(g_hook_to_create_application_process_event));
         return ResultSuccess();
     }
 
@@ -700,9 +646,19 @@ namespace ams::pm::impl {
     Result NotifyBootFinished() {
         static bool g_has_boot_finished = false;
         if (!g_has_boot_finished) {
+            /* Set program verification disabled, if we should. */
+            /* NOTE: Nintendo does not check the result of this. */
+            if (spl::IsDisabledProgramVerification()) {
+                if (hos::GetVersion() >= hos::Version_10_0_0) {
+                    ldr::pm::SetEnabledProgramVerification(false);
+                } else {
+                    fsprSetEnabledProgramVerification(false);
+                }
+            }
+
             boot2::LaunchPreSdCardBootProgramsAndBoot2();
             g_has_boot_finished = true;
-            g_boot_finished_event.Signal();
+            os::SignalSystemEvent(std::addressof(g_boot_finished_event));
         }
         return ResultSuccess();
     }
@@ -712,7 +668,7 @@ namespace ams::pm::impl {
         /* Nintendo only signals it in safe mode FIRM, and this function aborts on normal FIRM. */
         /* We will signal it always, but only allow this function to succeed on safe mode. */
         AMS_ABORT_UNLESS(spl::IsRecoveryBoot());
-        *out = g_boot_finished_event.GetReadableHandle();
+        *out = os::GetReadableHandleOfSystemEvent(std::addressof(g_boot_finished_event));
         return ResultSuccess();
     }
 
@@ -725,8 +681,8 @@ namespace ams::pm::impl {
         return resource::BoostApplicationThreadResourceLimit();
     }
 
-    Result AtmosphereGetCurrentLimitInfo(u64 *out_cur_val, u64 *out_lim_val, u32 group, u32 resource) {
-        return resource::GetResourceLimitValues(out_cur_val, out_lim_val, static_cast<ResourceLimitGroup>(group), static_cast<LimitableResource>(resource));
+    Result AtmosphereGetCurrentLimitInfo(s64 *out_cur_val, s64 *out_lim_val, u32 group, u32 resource) {
+        return resource::GetResourceLimitValues(out_cur_val, out_lim_val, static_cast<ResourceLimitGroup>(group), static_cast<svc::LimitableResource>(resource));
     }
 
 }

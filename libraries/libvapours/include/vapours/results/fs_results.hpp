@@ -63,17 +63,26 @@ namespace ams::fs {
         R_DEFINE_ERROR_RESULT(AllocationFailureInContentStorageB,             3221);
         R_DEFINE_ERROR_RESULT(AllocationFailureInDataA,                       3222);
         R_DEFINE_ERROR_RESULT(AllocationFailureInDataB,                       3223);
+        R_DEFINE_ERROR_RESULT(AllocationFailureInDeviceSaveDataA,             3224);
         R_DEFINE_ERROR_RESULT(AllocationFailureInGameCardA,                   3225);
         R_DEFINE_ERROR_RESULT(AllocationFailureInGameCardB,                   3226);
         R_DEFINE_ERROR_RESULT(AllocationFailureInGameCardC,                   3227);
         R_DEFINE_ERROR_RESULT(AllocationFailureInGameCardD,                   3228);
+        R_DEFINE_ERROR_RESULT(AllocationFailureInImageDirectoryA,             3232);
         R_DEFINE_ERROR_RESULT(AllocationFailureInSdCardA,                     3244);
         R_DEFINE_ERROR_RESULT(AllocationFailureInSdCardB,                     3245);
         R_DEFINE_ERROR_RESULT(AllocationFailureInSystemSaveDataA,             3246);
         R_DEFINE_ERROR_RESULT(AllocationFailureInRomFsFileSystemA,            3247);
         R_DEFINE_ERROR_RESULT(AllocationFailureInRomFsFileSystemB,            3248);
         R_DEFINE_ERROR_RESULT(AllocationFailureInRomFsFileSystemC,            3249);
+        R_DEFINE_ERROR_RESULT(AllocationFailureInPartitionFileSystemCreatorA, 3280);
+        R_DEFINE_ERROR_RESULT(AllocationFailureInFileSystemBuddyHeapA,        3294);
         R_DEFINE_ERROR_RESULT(AllocationFailureInDirectorySaveDataFileSystem, 3321);
+        R_DEFINE_ERROR_RESULT(AllocationFailureInPartitionFileSystemA,        3347);
+        R_DEFINE_ERROR_RESULT(AllocationFailureInPartitionFileSystemB,        3348);
+        R_DEFINE_ERROR_RESULT(AllocationFailureInPartitionFileSystemC,        3349);
+        R_DEFINE_ERROR_RESULT(AllocationFailureInPartitionFileSystemMetaA,    3350);
+        R_DEFINE_ERROR_RESULT(AllocationFailureInPartitionFileSystemMetaB,    3351);
         R_DEFINE_ERROR_RESULT(AllocationFailureInRomFsFileSystemD,            3352);
         R_DEFINE_ERROR_RESULT(AllocationFailureInSubDirectoryFileSystem,      3355);
         R_DEFINE_ERROR_RESULT(AllocationFailureInRegisterA,                   3365);
@@ -205,6 +214,8 @@ namespace ams::fs {
         R_DEFINE_ERROR_RESULT(GameCardLogoDataCorrupted, 4781);
 
     R_DEFINE_ERROR_RANGE(Unexpected, 5000, 5999);
+        R_DEFINE_ERROR_RESULT(UnexpectedInAesCtrStorageA,  5315);
+        R_DEFINE_ERROR_RESULT(UnexpectedInAesXtsStorageA,  5316);
         R_DEFINE_ERROR_RESULT(UnexpectedInFindFileSystemA, 5319);
 
     R_DEFINE_ERROR_RANGE(PreconditionViolation, 6000, 6499);
@@ -231,12 +242,16 @@ namespace ams::fs {
             R_DEFINE_ERROR_RESULT(ExtensionSizeTooLarge, 6066);
             R_DEFINE_ERROR_RESULT(ExtensionSizeInvalid,  6067);
 
+            R_DEFINE_ERROR_RESULT(InvalidOpenMode, 6072);
+
             R_DEFINE_ERROR_RANGE(InvalidEnumValue,  6080, 6099);
                 R_DEFINE_ERROR_RESULT(InvalidSaveDataState, 6081);
                 R_DEFINE_ERROR_RESULT(InvalidSaveDataSpaceId, 6082);
 
             R_DEFINE_ERROR_RANGE(InvalidOperationForOpenMode, 6200, 6299);
                 R_DEFINE_ERROR_RESULT(FileExtensionWithoutOpenModeAllowAppend, 6201);
+                R_DEFINE_ERROR_RESULT(ReadNotPermitted,                        6202);
+                R_DEFINE_ERROR_RESULT(WriteNotPermitted,                       6203);
 
             R_DEFINE_ERROR_RANGE(UnsupportedOperation, 6300, 6399);
                 R_DEFINE_ERROR_RESULT(UnsupportedOperationInSubStorageA,                    6302);
@@ -244,6 +259,8 @@ namespace ams::fs {
                 R_DEFINE_ERROR_RESULT(UnsupportedOperationInMemoryStorageA,                 6304);
                 R_DEFINE_ERROR_RESULT(UnsupportedOperationInMemoryStorageB,                 6305);
                 R_DEFINE_ERROR_RESULT(UnsupportedOperationInFileStorageA,                   6306);
+                R_DEFINE_ERROR_RESULT(UnsupportedOperationInFileStorageB,                   6307);
+                R_DEFINE_ERROR_RESULT(UnsupportedOperationInAesCtrStorageA,                 6315);
                 R_DEFINE_ERROR_RESULT(UnsupportedOperationInFileServiceObjectAdapterA,      6362);
                 R_DEFINE_ERROR_RESULT(UnsupportedOperationInRomFsFileSystemA,               6364);
                 R_DEFINE_ERROR_RESULT(UnsupportedOperationInRomFsFileSystemB,               6365);
@@ -255,6 +272,10 @@ namespace ams::fs {
                 R_DEFINE_ERROR_RESULT(UnsupportedOperationInReadOnlyFileSystemTemplateC,    6371);
                 R_DEFINE_ERROR_RESULT(UnsupportedOperationInReadOnlyFileA,                  6372);
                 R_DEFINE_ERROR_RESULT(UnsupportedOperationInReadOnlyFileB,                  6373);
+                R_DEFINE_ERROR_RESULT(UnsupportedOperationInPartitionFileSystemA,           6374);
+                R_DEFINE_ERROR_RESULT(UnsupportedOperationInPartitionFileSystemB,           6375);
+                R_DEFINE_ERROR_RESULT(UnsupportedOperationInPartitionFileA,                 6376);
+                R_DEFINE_ERROR_RESULT(UnsupportedOperationInPartitionFileB,                 6377);
 
             R_DEFINE_ERROR_RANGE(PermissionDenied, 6400, 6449);
 
@@ -270,8 +291,9 @@ namespace ams::fs {
     R_DEFINE_ERROR_RANGE(NotFound, 6600, 6699);
 
     R_DEFINE_ERROR_RANGE(OutOfResource, 6700, 6799);
-        R_DEFINE_ERROR_RESULT(MappingTableFull, 6706);
-        R_DEFINE_ERROR_RESULT(OpenCountLimit,   6709);
+        R_DEFINE_ERROR_RESULT(BufferAllocationFailed, 6705);
+        R_DEFINE_ERROR_RESULT(MappingTableFull,       6706);
+        R_DEFINE_ERROR_RESULT(OpenCountLimit,         6709);
 
     R_DEFINE_ERROR_RANGE(MappingFailed, 6800, 6899);
         R_DEFINE_ERROR_RESULT(MapFull,  6811);

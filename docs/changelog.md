@@ -1,4 +1,46 @@
 # Changelog
+## 0.11.1
++ A bug was fixed that could cause owls to flicker under certain circumstances.
+  + For those interested in technical details, in 10.0.0 kernelldr/kernel no longer set cpuactlr_el1, assuming that it was set correctly by the secure monitor.
+  + However, exosphere did not set cpuactlr_el1. This meant that the register held the reset value going into boot.
+  + This caused a variety of highly erratic symptoms, including causing basically any game to crash seemingly randomly.
++ A number of other major inaccuracies in exosphere were corrected.
++ General system stability improvements to enhance the user's experience.
+## 0.11.0
++ Support was added for 10.0.0.
+  + Exosphere has been updated to reflect the new key import semantics in 10.0.0.
+  + kernel_ldr now implements physical ASLR for the kernel's backing pages.
+  + Loader, NCM, and PM have been updated to reflect the changes Nintendo made in 10.0.0.
+  + Creport was updated to use the new `pgl` service to terminate processes instead of `ns:dev`.
++ A reimplementation of the `erpt` (error reports) system module was added.
+  + In previous versions of Atmosphere, a majority of error reports were prevented via a combination of custom creport, fatal, and stubbed eclct.
+  + However, error reports were still generated via some system actions.
+    + Most notably, any time the error applet appeared, an error report was generated.
+    + By default, atmosphere disabled the *uploading* of error reports, but going online in OFW after an error report occurred in Atmosphere could lead to undesirable telemetry.
+  + Atmosphere's `erpt` reimplementation allows the system to interact with existing error reports as expected.
+  + However, all new error reports are instead saved to the sd card (`/atmosphere/erpt_reports`), and are not committed to the system savegame.
+    + Users curious about what kind of telemetry is being prevented can view the reports as they're generated in there.
+    + Reports are saved as msgpack (as this is what Nintendo uses).
+  + Please note, not all telemetry is disabled. Play reports and System reports will continue to function unmodified.
+  + With atmosphere's `erpt` implementation, homebrew can now use the native error applet to display errors without worrying about generating undesirable telemetry.
++ libstratosphere and libvapours received a number of improvements.
+  + With thanks to @Adubbz for his work, the NCM namespace now has client code.
+    + This lays the groundwork for first-class system update/downgrade homebrew support in the near future.
+  + In particular, code implementing the os namespace is significantly more accurate.
+  + In addition, Nintendo's allocators were implemented, allowing for identical memory efficiency versus Nintendo's implementations.
++ General system stability improvements to enhance the user's experience.
+## 0.10.5
++ Changes were made to the way fs.mitm builds images when providing a layeredfs romfs.
+  + Building romfs metadata previously had a memory cost of about ~4-5x the file table size.
+  + This caused games that have particularly enormous file metadata tables (> 4 MB) to exhaust fs.mitm's 16 MB memory pool.
+  + The code that creates romfs images was thus changed to be significantly more memory efficient, again.
+  + Memory requirements have been lowered from ~4x file table size to ~2x file table size + 0.5 MB.
+  + There is a slight speed penalty to this, but testing on Football Manager 2020 only took an extra ~1.5 seconds for the game to boot with many modded files.
+    + This shouldn't be noticeable thanks to the async changes made in 0.10.2.
+  + If you encounter a game that exhausts ams.mitm's memory (crashing it) when loading layeredfs mods, please contact SciresM.
+    + Romfs building can be made even more memory efficient, but unless games show up with even more absurdly huge file tables it seems not worth the speed trade-off.
++ A bug was fixed that caused Atmosphere's fatal error context to not dump TLS for certain processes.
++ General system stability improvements to enhance the user's experience.
 ## 0.10.4
 + With major thanks to @Adubbz for his work, the NCM system module has now been re-implemented.
   + This was a major stepping stone towards the goal of having implementations everything in the Switch's package1/package2 firmware.

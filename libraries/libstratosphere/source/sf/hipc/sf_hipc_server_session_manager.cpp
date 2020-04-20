@@ -77,6 +77,7 @@ namespace ams::sf::hipc {
 
     void ServerSessionManager::CloseSessionImpl(ServerSession *session) {
         const Handle session_handle = session->session_handle;
+        os::FinalizeWaitableHolder(session);
         this->DestroySession(session);
         R_ABORT_UNLESS(svcCloseHandle(session_handle));
     }
@@ -238,6 +239,24 @@ namespace ams::sf::hipc {
     Result ServerSessionManager::ProcessRequestImpl(ServerSession *session, const cmif::PointerAndSize &in_message, const cmif::PointerAndSize &out_message) {
         /* TODO: Inline context support, retrieve from raw data + 0xC. */
         const auto cmif_command_type = GetCmifCommandType(in_message);
+
+        const auto GetInlineContext = [&]() -> cmif::InlineContext {
+            cmif::InlineContext ret  = {};
+            switch (cmif_command_type) {
+                case CmifCommandType_RequestWithContext:
+                case CmifCommandType_ControlWithContext:
+                    if (in_message.GetSize() >= 0x10) {
+                        static_assert(sizeof(cmif::InlineContext) == 4);
+                        std::memcpy(std::addressof(ret), static_cast<u8 *>(in_message.GetPointer()) + 0xC, sizeof(ret));
+                    }
+                    break;
+                default:
+                    break;
+            }
+            return ret;
+        };
+
+        cmif::ScopedInlineContextChanger sicc(GetInlineContext());
         switch (cmif_command_type) {
             case CmifCommandType_Request:
             case CmifCommandType_RequestWithContext:
