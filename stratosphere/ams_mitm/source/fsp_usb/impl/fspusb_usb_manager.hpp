@@ -20,8 +20,8 @@ namespace ams::mitm::fspusb::impl {
     bool IsDriveInterfaceIdValid(s32 drive_interface_id);
     u32 GetDriveMountedIndex(s32 drive_interface_id);
     s32 GetDriveInterfaceId(u32 drive_idx);
-    void DoWithDrive(s32 drive_interface_id, std::function<void(DrivePointer&)> fn);
-    void DoWithDriveMountedIndex(u32 drive_mounted_idx, std::function<void(DrivePointer&)> fn);
+    void DoWithDrive(s32 drive_interface_id, std::function<void(std::unique_ptr<Drive>&)> fn);
+    void DoWithDriveMountedIndex(u32 drive_mounted_idx, std::function<void(std::unique_ptr<Drive>&)> fn);
     void DoWithDriveFATFS(s32 drive_interface_id, std::function<void(FATFS*)> fn);
     
 }

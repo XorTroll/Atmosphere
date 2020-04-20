@@ -49,7 +49,7 @@ namespace ams::mitm::fspusb {
         auto ffrc = f_getlabel(mountname, reinterpret_cast<char*>(out_label_str.GetPointer()), nullptr);
         FSP_USB_LOG("%s (interface ID %d): f_getlabel returned %u.", __func__, drive_interface_id, ffrc);
 
-        return result::CreateFromFRESULT(ffrc);
+        return result::CreateFromFATFSError(ffrc);
     }
 
     Result Service::SetDriveLabel(s32 drive_interface_id, sf::InBuffer &label_str) {
@@ -82,7 +82,7 @@ namespace ams::mitm::fspusb {
         auto ffrc = f_setlabel(newname);
         FSP_USB_LOG("%s (interface ID %d): f_setlabel returned %u.", __func__, drive_interface_id, ffrc);
 
-        return result::CreateFromFRESULT(ffrc);
+        return result::CreateFromFATFSError(ffrc);
     }
 
     Result Service::OpenDriveFileSystem(s32 drive_interface_id, sf::Out<std::shared_ptr<IFileSystemInterface>> out_fs) {

@@ -51,7 +51,7 @@ namespace ams::mitm::fspusb {
                 }
                 *out_count = count;
 
-                return result::CreateFromFRESULT(ffrc);
+                return result::CreateFromFATFSError(ffrc);
             }
 
             virtual Result GetEntryCountImpl(s64 *out) override final {
@@ -69,7 +69,7 @@ namespace ams::mitm::fspusb {
                 }
                 *out = count;
 
-                return result::CreateFromFRESULT(ffrc);
+                return result::CreateFromFATFSError(ffrc);
             }
 
             virtual sf::cmif::DomainObjectId GetDomainObjectId() const override {

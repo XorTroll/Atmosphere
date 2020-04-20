@@ -16,20 +16,24 @@
 #include "../impl/fspusb_usb_manager.hpp"
 
 /* For convenience */
-using namespace ams::mitm;
+using namespace ams::mitm::fspusb;
 
 /* Reference for needed FATFS impl functions: http://irtos.sourceforge.net/FAT32_ChaN/doc/en/appnote.html#port */
 
-static u8 GetDriveStatus(u32 mounted_idx) {
-	u8 status = STA_NOINIT;
+namespace {
 
-	fspusb::impl::DoWithDriveMountedIndex(mounted_idx, [&](fspusb::impl::DrivePointer &drive_ptr) {
-		if (drive_ptr->IsSCSIOk()) {
-			status = 0;
-		}
-	});
+	inline u8 GetDriveStatusImpl(u32 mounted_idx) {
+		u8 status = STA_NOINIT;
 
-	return status;
+		impl::DoWithDriveMountedIndex(mounted_idx, [&](std::unique_ptr<impl::Drive> &drive_ptr) {
+			if (drive_ptr->IsSCSIOk()) {
+				status = 0;
+			}
+		});
+
+		return status;
+	}
+
 }
 
 /*-----------------------------------------------------------------------*/
@@ -40,7 +44,7 @@ extern "C" DSTATUS disk_status (
 	BYTE pdrv		/* Physical drive nmuber to identify the drive */
 )
 {
-	return GetDriveStatus((u32)pdrv);
+	return GetDriveStatusImpl(static_cast<u32>(pdrv));
 }
 
 
@@ -53,7 +57,7 @@ extern "C" DSTATUS disk_initialize (
 	BYTE pdrv				/* Physical drive nmuber to identify the drive */
 )
 {
-	return GetDriveStatus((u32)pdrv);
+	return GetDriveStatusImpl(static_cast<u32>(pdrv));
 }
 
 
@@ -70,11 +74,12 @@ extern "C" DRESULT disk_read (
 )
 {
 	auto res = RES_PARERR;
-
-	fspusb::impl::DoWithDriveMountedIndex((u32)pdrv, [&](fspusb::impl::DrivePointer &drive_ptr) {
-        res = drive_ptr->DoReadSectors(buff, sector, count);
+	impl::DoWithDriveMountedIndex(static_cast<u32>(pdrv), [&](std::unique_ptr<impl::Drive> &drive_ptr) {
+        auto r_res = drive_ptr->ReadSectors(buff, sector, count);
+		if(r_res > 0) {
+			res = RES_OK;
+		}
 	});
-
 	return res;
 }
 
@@ -93,11 +98,12 @@ extern "C" DRESULT disk_write (
 )
 {
 	auto res = RES_PARERR;
-
-	fspusb::impl::DoWithDriveMountedIndex((u32)pdrv, [&](fspusb::impl::DrivePointer &drive_ptr) {
-		res = drive_ptr->DoWriteSectors(buff, sector, count);
+	impl::DoWithDriveMountedIndex(static_cast<u32>(pdrv), [&](std::unique_ptr<impl::Drive> &drive_ptr) {
+		auto w_res = drive_ptr->WriteSectors(buff, sector, count);
+		if(w_res > 0) {
+			res = RES_OK;
+		}
 	});
-	
 	return res;
 }
 
@@ -116,8 +122,9 @@ extern "C" DRESULT disk_ioctl (
 {
     switch(cmd) {
         case GET_SECTOR_SIZE: {
-            fspusb::impl::DoWithDriveMountedIndex((u32)pdrv, [&](fspusb::impl::DrivePointer &drive_ptr) {
-                *(WORD*)buff = (WORD)drive_ptr->GetBlockSize();
+            impl::DoWithDriveMountedIndex(static_cast<u32>(pdrv), [&](std::unique_ptr<impl::Drive> &drive_ptr) {
+				auto block_size = drive_ptr->GetBlockSize();
+                *(WORD*)buff = static_cast<WORD>(block_size);
             });
             break;
 		}
@@ -134,9 +141,8 @@ DWORD get_fattime(void)
     u64 timestamp = 0;
     DWORD output = 0;
     
-    Result rc = timeGetCurrentTime(TimeType_LocalSystemClock, &timestamp);
-    if (R_SUCCEEDED(rc)) {
-        time_t rawtime = (time_t)timestamp;
+    if (R_SUCCEEDED(timeGetCurrentTime(TimeType_LocalSystemClock, &timestamp))) {
+        time_t rawtime = static_cast<time_t>(timestamp);
         struct tm *timeinfo = localtime(&rawtime);
         output = FAT_TIMESTAMP(timeinfo->tm_year, timeinfo->tm_mon + 1, timeinfo->tm_mday, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
     }

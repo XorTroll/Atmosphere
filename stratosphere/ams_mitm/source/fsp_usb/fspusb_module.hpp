@@ -19,6 +19,6 @@
 
 namespace ams::mitm::fspusb {
 
-    DEFINE_MITM_MODULE_CLASS(0x8000, 43);
+    DEFINE_MITM_MODULE_CLASS(0x8000, 0xF);
 
 }

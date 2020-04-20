@@ -43,13 +43,13 @@ namespace ams::mitm::fspusb {
         
         sm::DoWithSession([&]() {
 #ifdef FSP_USB_DEBUG
-            R_ASSERT(fsdevMountSdmc());
+            R_ABORT_UNLESS(fsdevMountSdmc());
 #endif
-            R_ASSERT(timeInitialize());
-            R_ASSERT(impl::InitializeManager());
+            R_ABORT_UNLESS(timeInitialize());
+            R_ABORT_UNLESS(impl::InitializeManager());
         });
 
-        R_ASSERT(g_server_manager.RegisterServer<Service>(ServiceName, MaxSessions));
+        R_ABORT_UNLESS(g_server_manager.RegisterServer<Service>(ServiceName, MaxSessions));
 
         g_server_manager.LoopProcess();
 

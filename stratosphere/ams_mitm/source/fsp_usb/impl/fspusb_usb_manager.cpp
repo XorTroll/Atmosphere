@@ -5,11 +5,11 @@
 
 namespace ams::mitm::fspusb::impl {
 
-    ams::os::Mutex g_usb_manager_lock(false);
+    ams::os::Mutex g_usb_manager_lock(true);
     ams::os::ThreadType g_usb_update_thread;
     alignas(os::ThreadStackAlignment) u8 g_usb_update_thread_stack[16_KB];
 
-    std::vector<DrivePointer> g_usb_manager_drives;
+    std::vector<std::unique_ptr<Drive>> g_usb_manager_drives;
     Event g_usb_manager_interface_available_event;
     Event g_usb_manager_thread_exit_event;
     UsbHsInterfaceFilter g_usb_manager_device_filter;
@@ -24,6 +24,8 @@ namespace ams::mitm::fspusb::impl {
         size_t iface_block_size = DriveMax * sizeof(UsbHsInterface);
         std::memset(iface_block, 0, iface_block_size);
         s32 iface_count = 0;
+
+        /* TODO: refactor with R_TRY */
         
         Result rc;
         
@@ -32,7 +34,7 @@ namespace ams::mitm::fspusb::impl {
         if (!g_usb_manager_drives.empty()) {
             FSP_USB_LOG("%s: checking interfaces from previously acquired drives.", __func__);
             
-            std::vector<DrivePointer> valid_drives;
+            std::vector<std::unique_ptr<Drive>> valid_drives;
             rc = usbHsQueryAcquiredInterfaces(iface_block, iface_block_size, &iface_count);
             if (R_SUCCEEDED(rc)) {
                 for(auto &drive: g_usb_manager_drives) {
@@ -52,7 +54,7 @@ namespace ams::mitm::fspusb::impl {
                     } else {
                         FSP_USB_LOG("%s: drive with interface ID %d not available anymore.", __func__, drive->GetInterfaceId());
                         drive->Unmount();
-                        drive->Dispose(true);
+                        drive->DisposeInterfaces();
                     }
                 }
             } else {
@@ -82,7 +84,6 @@ namespace ams::mitm::fspusb::impl {
             
             bool in_ep_opened = false;
             bool out_ep_opened = false;
-            bool fail = false;
             bool bulk_reset = false;
             
             rc = usbHsAcquireUsbIf(&iface, &iface_block[i]);
@@ -106,6 +107,8 @@ namespace ams::mitm::fspusb::impl {
                     break;
                 }
             }
+
+            bool drive_ok = false;
             
             /* Check if we opened our I/O endpoints */
             if (in_ep_opened && out_ep_opened) {
@@ -150,43 +153,32 @@ namespace ams::mitm::fspusb::impl {
                             ClearEndpointHalt(&iface, &outep);
                             
                             /* Try to mount each LUN until one of them succeeds */
-                            fail = true;
                             for(u8 j = 0; j < max_lun; j++) {
-                                /* Since FATFS reads from drives in the vector and we need to mount it, push it to the vector first */
-                                /* Then, if it didn't mount correctly, pop from the vector and close the interface */
+                                /* Since FATFS reads from drives in the vector and we need to mount it, push it to the vector first. */
+                                /* Then, if it didn't mount correctly, pop from the vector and close the interface. */
                                 auto drv = std::make_unique<Drive>(iface, inep, outep, j);
                                 g_usb_manager_drives.push_back(std::move(drv));
                                 
                                 auto &drive_ref = g_usb_manager_drives.back();
                                 rc = drive_ref->Mount();
                                 if (R_SUCCEEDED(rc)) {
-                                    fail = false;
+                                    drive_ok = true;
                                     break;
                                 }
-                                
-                                /* Don't close the opened USB objects at this stage */
-                                drive_ref->Dispose(false);
+
+                                /* Failed to mount, remove from the vector. */
                                 g_usb_manager_drives.pop_back();
                             }
                             
-                            FSP_USB_LOG("%s: %s drive on enumerated interface #%d (ID %d).", __func__, (fail ? "failed to mount" : "successfully mounted"), i, iface.ID);
-                        } else {
-                            fail = true;
-                            FSP_USB_LOG("%s: ResetBulkStorage returned 0x%08X.", __func__, rc.GetValue());
+                            FSP_USB_LOG("%s: %s drive on enumerated interface #%d (ID %d).", __func__, (drive_ok ? "successfully mounted" : "failed to mount"), i, iface.ID);
                         }
-                    } else {
-                        fail = true;
-                        FSP_USB_LOG("%s: SetUSBAlternativeInterface returned 0x%08X.", __func__, rc.GetValue());
                     }
-                } else {
-                    fail = true;
-                    FSP_USB_LOG("%s: SetUSBConfiguration returned 0x%08X.", __func__, rc.GetValue());
                 }
-            } else {
-                fail = true;
             }
             
-            if (fail) {
+            if (!drive_ok) {
+                /* Something failed, so let's close the interfaces we opened. */
+                FSP_USB_LOG("%s: Last result -> 0x%08X.", __func__, rc.GetValue());
                 if (in_ep_opened) {
                     usbHsEpClose(&outep);
                 }
@@ -288,7 +280,7 @@ namespace ams::mitm::fspusb::impl {
         if (g_usb_manager_initialized) {
             for(auto &drive: g_usb_manager_drives) {
                 drive->Unmount();
-                drive->Dispose(true);
+                drive->DisposeInterfaces();
             }
             
             g_usb_manager_drives.clear();
@@ -359,7 +351,7 @@ namespace ams::mitm::fspusb::impl {
         return 0;
     }
 
-    void DoWithDrive(s32 drive_interface_id, std::function<void(DrivePointer&)> fn) {
+    void DoWithDrive(s32 drive_interface_id, std::function<void(std::unique_ptr<Drive>&)> fn) {
         std::scoped_lock lk(g_usb_manager_lock);
         for(auto &drive: g_usb_manager_drives) {
             if (drive_interface_id == drive->GetInterfaceId()) {
@@ -369,7 +361,7 @@ namespace ams::mitm::fspusb::impl {
         }
     }
 
-    void DoWithDriveMountedIndex(u32 drive_mounted_idx, std::function<void(DrivePointer&)> fn) {
+    void DoWithDriveMountedIndex(u32 drive_mounted_idx, std::function<void(std::unique_ptr<Drive>&)> fn) {
         std::scoped_lock lk(g_usb_manager_lock);
         for(auto &drive: g_usb_manager_drives) {
             if (drive_mounted_idx == drive->GetMountedIndex()) {
@@ -380,7 +372,7 @@ namespace ams::mitm::fspusb::impl {
     }
 
     void DoWithDriveFATFS(s32 drive_interface_id, std::function<void(FATFS*)> fn) {
-        DoWithDrive(drive_interface_id, [&](DrivePointer &drive_ptr) {
+        DoWithDrive(drive_interface_id, [&](std::unique_ptr<Drive> &drive_ptr) {
             drive_ptr->DoWithFATFS(fn);
         });
     }

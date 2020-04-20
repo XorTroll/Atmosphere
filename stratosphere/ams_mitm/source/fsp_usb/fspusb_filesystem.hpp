@@ -11,12 +11,12 @@ namespace ams::mitm::fspusb {
             s32 usb_iface_id;
             char mount_name[0x10];
 
-            void DoWithDrive(std::function<void(impl::DrivePointer&)> fn) {
+            void DoWithDrive(std::function<void(std::unique_ptr<impl::Drive>&)> fn) {
                 impl::DoWithDrive(this->usb_iface_id, fn);
             }
 
             void DoWithDriveFATFS(std::function<void(FATFS*)> fn) {
-                this->DoWithDrive([&](impl::DrivePointer &drive_ptr) {
+                this->DoWithDrive([&](std::unique_ptr<impl::Drive> &drive_ptr) {
                     drive_ptr->DoWithFATFS(fn);
                 });
             }
@@ -87,7 +87,7 @@ namespace ams::mitm::fspusb {
                 FATFS *fs = nullptr;
                 DWORD clstrs = 0;
                 
-                this->DoWithDrive([&](impl::DrivePointer &drive_ptr) {
+                this->DoWithDrive([&](std::unique_ptr<impl::Drive> &drive_ptr) {
                     block_size = drive_ptr->GetBlockSize();
                 });
                 
@@ -130,7 +130,7 @@ namespace ams::mitm::fspusb {
                     }
                 });
 
-                return result::CreateFromFRESULT(ffrc);
+                return result::CreateFromFATFSError(ffrc);
             }
 
             virtual Result DeleteFileImpl(const char *path) override final {
@@ -144,7 +144,7 @@ namespace ams::mitm::fspusb {
                     ffrc = f_unlink(ffpath);
                 });
 
-                return result::CreateFromFRESULT(ffrc);
+                return result::CreateFromFATFSError(ffrc);
             }
 
             virtual Result CreateDirectoryImpl(const char *path) override final {
@@ -158,7 +158,7 @@ namespace ams::mitm::fspusb {
                     ffrc = f_mkdir(ffpath);
                 });
 
-                return result::CreateFromFRESULT(ffrc);
+                return result::CreateFromFATFSError(ffrc);
             }
 
             virtual Result DeleteDirectoryImpl(const char *path) override final {
@@ -172,7 +172,7 @@ namespace ams::mitm::fspusb {
                     ffrc = f_rmdir(ffpath);
                 });
 
-                return result::CreateFromFRESULT(ffrc);
+                return result::CreateFromFATFSError(ffrc);
             }
 
             virtual Result DeleteDirectoryRecursivelyImpl(const char *path) override final {
@@ -184,7 +184,7 @@ namespace ams::mitm::fspusb {
                 /* Remove directory contents and the directory itself */
                 auto ffrc = DeleteDirectoryRecursivelyImpl(ffpath, true);
 
-                return result::CreateFromFRESULT(ffrc);
+                return result::CreateFromFATFSError(ffrc);
             }
 
             virtual Result RenameFileImpl(const char *old_path, const char *new_path) override final {
@@ -200,7 +200,7 @@ namespace ams::mitm::fspusb {
                     ffrc = f_rename(ffoldpath, ffnewpath);
                 });
 
-                return result::CreateFromFRESULT(ffrc);
+                return result::CreateFromFATFSError(ffrc);
             }
 
             virtual Result RenameDirectoryImpl(const char *old_path, const char *new_path) override final {
@@ -225,7 +225,7 @@ namespace ams::mitm::fspusb {
                     *out = ((finfo.fattrib & AM_DIR) ? fs::DirectoryEntryType_Directory : fs::DirectoryEntryType_File);
                 }
 
-                return result::CreateFromFRESULT(ffrc);
+                return result::CreateFromFATFSError(ffrc);
             }
 
             virtual Result OpenFileImpl(std::unique_ptr<fs::fsa::IFile> *out_file, const char *path, fs::OpenMode mode) override final {
@@ -256,7 +256,7 @@ namespace ams::mitm::fspusb {
                     *out_file = std::make_unique<DriveFile>(this->usb_iface_id, fil);
                 }
 
-                return result::CreateFromFRESULT(ffrc);
+                return result::CreateFromFATFSError(ffrc);
             }
 
             virtual Result OpenDirectoryImpl(std::unique_ptr<fs::fsa::IDirectory> *out_dir, const char *path, fs::OpenDirectoryMode mode) override final {
@@ -275,7 +275,7 @@ namespace ams::mitm::fspusb {
                     *out_dir = std::make_unique<DriveDirectory>(this->usb_iface_id, dir);
                 }
 
-                return result::CreateFromFRESULT(ffrc);
+                return result::CreateFromFATFSError(ffrc);
             }
 
             virtual Result CommitImpl() override final {
@@ -288,7 +288,7 @@ namespace ams::mitm::fspusb {
 
                 auto ffrc = GetSpaceImpl(out, false);
 
-                return result::CreateFromFRESULT(ffrc);
+                return result::CreateFromFATFSError(ffrc);
             }
 
             virtual Result GetTotalSpaceSizeImpl(s64 *out, const char *path) override final {
@@ -296,7 +296,7 @@ namespace ams::mitm::fspusb {
 
                 auto ffrc = GetSpaceImpl(out, true);
 
-                return result::CreateFromFRESULT(ffrc);
+                return result::CreateFromFATFSError(ffrc);
             }
 
             virtual Result CleanDirectoryRecursivelyImpl(const char *path) override final {
@@ -308,7 +308,7 @@ namespace ams::mitm::fspusb {
                 /* Remove just the directory contents */
                 auto ffrc = DeleteDirectoryRecursivelyImpl(ffpath, false);
 
-                return result::CreateFromFRESULT(ffrc);
+                return result::CreateFromFATFSError(ffrc);
             }
 
             virtual Result GetFileTimeStampRawImpl(fs::FileTimeStampRaw *out, const char *path) override final {
@@ -344,7 +344,7 @@ namespace ams::mitm::fspusb {
                     out->is_valid = 0x1;
                 }
 
-                return result::CreateFromFRESULT(ffrc);
+                return result::CreateFromFATFSError(ffrc);
             }
 
             virtual Result QueryEntryImpl(char *dst, size_t dst_size, const char *src, size_t src_size, fs::fsa::QueryId query, const char *path) override final {

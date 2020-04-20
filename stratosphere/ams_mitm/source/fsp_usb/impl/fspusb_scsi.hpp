@@ -223,11 +223,11 @@ namespace ams::mitm::fspusb::impl {
             void PushCommand(SCSICommand &cmd, u32 diff);
             SCSICommandStatus TransferCommand(SCSICommand &c, u8 *buffer);
 
-            bool Ok() {
+            inline bool Ok() {
                 return this->ok;
             }
 
-            u8 GetDeviceLUN() {
+            inline u8 GetDeviceLUN() {
                 return this->dev_lun;
             }
     };
@@ -244,11 +244,11 @@ namespace ams::mitm::fspusb::impl {
             int ReadSectors(u8 *buffer, u64 sector_offset, u32 num_sectors);
             int WriteSectors(const u8 *buffer, u64 sector_offset, u32 num_sectors);
 
-            u32 GetBlockSize() {
+            inline u32 GetBlockSize() {
                 return this->block_size;
             }
 
-            bool Ok() {
+            inline bool Ok() {
                 if (this->device == nullptr) {
                     return false;
                 }
@@ -258,35 +258,17 @@ namespace ams::mitm::fspusb::impl {
 
     class SCSIDriveContext {
         private:
-            SCSIDevice *device;
-            SCSIBlock *block;
+            SCSIDevice device;
+            SCSIBlock block;
         public:
-            SCSIDriveContext(UsbHsClientIfSession *interface, UsbHsClientEpSession *in_ep, UsbHsClientEpSession *out_ep, u8 lun) : device(nullptr), block(nullptr) {
-                this->device = new SCSIDevice(interface, in_ep, out_ep, lun);
-                this->block = new SCSIBlock(this->device);
-            }
+            SCSIDriveContext(UsbHsClientIfSession *interface, UsbHsClientEpSession *in_ep, UsbHsClientEpSession *out_ep, u8 lun) : device(interface, in_ep, out_ep, lun), block(&this->device) {}
 
-            ~SCSIDriveContext() {
-                if (this->block != nullptr) {
-                    delete this->block;
-                    this->block = nullptr;
-                }
-                if (this->device != nullptr) {
-                    delete this->device;
-                    this->device = nullptr;
-                }
-            }
-
-            SCSIDevice *GetDevice() {
-                return this->device;
-            }
-
-            SCSIBlock *GetBlock() {
+            inline SCSIBlock &GetBlock() {
                 return this->block;
             }
 
-            bool Ok() {
-                return this->block->Ok();
+            inline bool Ok() {
+                return this->block.Ok();
             }
     };
 }

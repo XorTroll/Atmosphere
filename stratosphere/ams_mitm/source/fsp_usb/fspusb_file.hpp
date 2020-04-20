@@ -31,7 +31,7 @@ namespace ams::mitm::fspusb {
                     if (ffrc == FR_OK) *out = (size_t)br;
                 }
 
-                return result::CreateFromFRESULT(ffrc);
+                return result::CreateFromFATFSError(ffrc);
             }
 
             virtual Result GetSizeImpl(s64 *out) override final {
@@ -57,7 +57,7 @@ namespace ams::mitm::fspusb {
                 }
 
                 /* We ignore the flush flag since everything is written right away */
-                return result::CreateFromFRESULT(ffrc);
+                return result::CreateFromFATFSError(ffrc);
             }
 
             virtual Result SetSizeImpl(s64 size) override final {
@@ -74,7 +74,7 @@ namespace ams::mitm::fspusb {
                     ffrc = f_truncate(&this->file);
                 }
 
-                return result::CreateFromFRESULT(ffrc);
+                return result::CreateFromFATFSError(ffrc);
             }
 
             virtual Result OperateRangeImpl(void *dst, size_t dst_size, fs::OperationId op_id, s64 offset, s64 size, const void *src, size_t src_size) override final {
