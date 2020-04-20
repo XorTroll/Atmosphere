@@ -5,8 +5,10 @@
 
 namespace ams::mitm::fspusb::impl {
 
-    ams::os::Mutex g_usb_manager_lock;
-    ams::os::Thread g_usb_update_thread;
+    ams::os::Mutex g_usb_manager_lock(false);
+    ams::os::ThreadType g_usb_update_thread;
+    alignas(os::ThreadStackAlignment) u8 g_usb_update_thread_stack[16_KB];
+
     std::vector<DrivePointer> g_usb_manager_drives;
     Event g_usb_manager_interface_available_event;
     Event g_usb_manager_thread_exit_event;
@@ -270,9 +272,11 @@ namespace ams::mitm::fspusb::impl {
             g_usb_manager_device_filter.bInterfaceProtocol = MASS_STORAGE_BULK_ONLY;
             
             R_TRY(usbHsCreateInterfaceAvailableEvent(&g_usb_manager_interface_available_event, true, 0, &g_usb_manager_device_filter));
+
             R_TRY(eventCreate(&g_usb_manager_thread_exit_event, true));
-            R_TRY(g_usb_update_thread.Initialize(&ManagerUpdateThread, nullptr, 0x4000, 0x15));
-            R_TRY(g_usb_update_thread.Start());
+
+            R_TRY(os::CreateThread(&g_usb_update_thread, &ManagerUpdateThread, nullptr, g_usb_update_thread_stack, sizeof(g_usb_update_thread_stack), -7));
+            os::StartThread(&g_usb_update_thread);
             
             g_usb_manager_initialized = true;
         }
@@ -291,7 +295,7 @@ namespace ams::mitm::fspusb::impl {
             
             /* Fire thread exit user event, wait until the thread exits and close the event */
             eventFire(&g_usb_manager_thread_exit_event);
-            R_ASSERT(g_usb_update_thread.Join());
+            os::WaitThread(&g_usb_update_thread);
             eventClose(&g_usb_manager_thread_exit_event);
             
             usbHsDestroyInterfaceAvailableEvent(&g_usb_manager_interface_available_event, 0);
