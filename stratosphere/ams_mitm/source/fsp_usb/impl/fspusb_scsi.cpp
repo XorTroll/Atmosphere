@@ -562,7 +562,7 @@ namespace ams::mitm::fspusb::impl {
         }
     }
 
-    int SCSIContext::ReadSectors(u8 *buffer, u64 sector_offset, u32 num_sectors) {
+    u32 SCSIContext::ReadSectors(u8 *buffer, u64 sector_offset, u32 num_sectors) {
         if (!this->Ok()) {
             return 0;
         }
@@ -582,7 +582,7 @@ namespace ams::mitm::fspusb::impl {
         return num_sectors;
     }
 
-    int SCSIContext::WriteSectors(const u8 *buffer, u64 sector_offset, u32 num_sectors) {
+    u32 SCSIContext::WriteSectors(const u8 *buffer, u64 sector_offset, u32 num_sectors) {
         if (!this->Ok()) {
             return 0;
         }

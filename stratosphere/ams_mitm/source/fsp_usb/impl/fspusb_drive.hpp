@@ -53,11 +53,11 @@ namespace ams::mitm::fspusb::impl {
                 return this->scsi_context.Ok();
             }
 
-            inline int ReadSectors(u8 *buffer, u64 sector_offset, u32 num_sectors) {
+            inline u32 ReadSectors(u8 *buffer, u64 sector_offset, u32 num_sectors) {
                 return this->scsi_context.ReadSectors(buffer, sector_offset, num_sectors);
             }
 
-            inline int WriteSectors(const u8 *buffer, u64 sector_offset, u32 num_sectors) {
+            inline u32 WriteSectors(const u8 *buffer, u64 sector_offset, u32 num_sectors) {
                 return this->scsi_context.WriteSectors(buffer, sector_offset, num_sectors);
             }
 

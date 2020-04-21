@@ -251,8 +251,8 @@ namespace ams::mitm::fspusb::impl {
                 this->Initialize();
             }
 
-            int ReadSectors(u8 *buffer, u64 sector_offset, u32 num_sectors);
-            int WriteSectors(const u8 *buffer, u64 sector_offset, u32 num_sectors);
+            u32 ReadSectors(u8 *buffer, u64 sector_offset, u32 num_sectors);
+            u32 WriteSectors(const u8 *buffer, u64 sector_offset, u32 num_sectors);
 
             inline u32 GetBlockSize() {
                 return this->block_size;
