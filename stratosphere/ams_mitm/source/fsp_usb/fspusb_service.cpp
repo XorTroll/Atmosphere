@@ -6,16 +6,17 @@ namespace ams::mitm::fspusb {
         FSP_USB_LOG("%s: forcing a mounted drive list update.", __func__);
         impl::DoUpdateDrives();
 
-        size_t drive_count = impl::GetAcquiredDriveCount();
-        size_t buf_drive_count = std::min(drive_count, out_interface_ids.GetSize());
-        FSP_USB_LOG("%s: drive count -> %lu | output drive count -> %lu.", __func__, drive_count, buf_drive_count);
+        auto acquired_drive_count = impl::GetAcquiredDriveCount();
+        auto array_drive_count = out_interface_ids.GetSize();
+        auto drive_count = std::min(acquired_drive_count, array_drive_count);
+        FSP_USB_LOG("%s: acquired drive count -> %lu | array drive count -> %lu.", __func__, acquired_drive_count, array_drive_count);
 
-        for(u32 i = 0; i < buf_drive_count; i++) {
+        for(u32 i = 0; i < drive_count; i++) {
             out_interface_ids[i] = impl::GetDriveInterfaceId(i);
             FSP_USB_LOG("%s: interface ID #%u -> %d.", __func__, i, out_interface_ids[i]);
         }
 
-        out_count.SetValue(static_cast<s32>(buf_drive_count));
+        out_count.SetValue(static_cast<s32>(drive_count));
     }
 
     Result Service::GetDriveFileSystemType(s32 drive_interface_id, sf::Out<u8> out_fs_type) {
@@ -23,10 +24,12 @@ namespace ams::mitm::fspusb {
         impl::DoUpdateDrives();
         R_UNLESS(impl::IsDriveInterfaceIdValid(drive_interface_id), ResultInvalidDriveInterfaceId());
 
-        u8 fs_type;
+        u8 fs_type = UINT8_MAX;
         impl::DoWithDriveFATFS(drive_interface_id, [&](FATFS *fs) {
             fs_type = fs->fs_type;
         });
+        /* Additional check if the fs type was actually got. */
+        R_UNLESS(fs_type != UINT8_MAX, ResultInvalidDriveInterfaceId());
 
         out_fs_type.SetValue(fs_type);
         FSP_USB_LOG("%s (interface ID %d): set filesystem type to 0x%02X.", __func__, drive_interface_id, fs_type);

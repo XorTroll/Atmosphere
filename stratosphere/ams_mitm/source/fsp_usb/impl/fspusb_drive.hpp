@@ -27,7 +27,7 @@ namespace ams::mitm::fspusb::impl {
             ams::os::Mutex fat_fs_lock;
             u32 mounted_idx;
             char mount_name[0x10];
-            SCSIDriveContext scsi_context;
+            SCSIContext scsi_context;
             bool mounted;
 
         public:
@@ -46,7 +46,7 @@ namespace ams::mitm::fspusb::impl {
             }
 
             inline u32 GetBlockSize() {
-                return this->scsi_context.GetBlock().GetBlockSize();
+                return this->scsi_context.GetBlockSize();
             }
 
             inline bool IsSCSIOk() {
@@ -54,11 +54,11 @@ namespace ams::mitm::fspusb::impl {
             }
 
             inline int ReadSectors(u8 *buffer, u64 sector_offset, u32 num_sectors) {
-                return this->scsi_context.GetBlock().ReadSectors(buffer, sector_offset, num_sectors);
+                return this->scsi_context.ReadSectors(buffer, sector_offset, num_sectors);
             }
 
             inline int WriteSectors(const u8 *buffer, u64 sector_offset, u32 num_sectors) {
-                return this->scsi_context.GetBlock().WriteSectors(buffer, sector_offset, num_sectors);
+                return this->scsi_context.WriteSectors(buffer, sector_offset, num_sectors);
             }
 
             inline void DoWithFATFS(std::function<void(FATFS*)> fn) {

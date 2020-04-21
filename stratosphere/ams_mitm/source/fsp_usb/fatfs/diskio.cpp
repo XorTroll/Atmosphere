@@ -76,7 +76,8 @@ extern "C" DRESULT disk_read (
 	auto res = RES_PARERR;
 	impl::DoWithDriveMountedIndex(static_cast<u32>(pdrv), [&](std::unique_ptr<impl::Drive> &drive_ptr) {
         auto r_res = drive_ptr->ReadSectors(buff, sector, count);
-		if(r_res > 0) {
+		/* ReadSectors returns 0 on failure and the input sector count on success. */
+		if(r_res == count) {
 			res = RES_OK;
 		}
 	});
@@ -100,7 +101,8 @@ extern "C" DRESULT disk_write (
 	auto res = RES_PARERR;
 	impl::DoWithDriveMountedIndex(static_cast<u32>(pdrv), [&](std::unique_ptr<impl::Drive> &drive_ptr) {
 		auto w_res = drive_ptr->WriteSectors(buff, sector, count);
-		if(w_res > 0) {
+		/* WriteSectors returns 0 on failure and the input sector count on success. */
+		if(w_res == count) {
 			res = RES_OK;
 		}
 	});
@@ -139,16 +141,13 @@ extern "C" DRESULT disk_ioctl (
 DWORD get_fattime(void)
 {
     u64 timestamp = 0;
-    DWORD output = 0;
+	/* Use FF_NORTC values by default */
+    DWORD output = FAT_TIMESTAMP(FF_NORTC_YEAR, FF_NORTC_MON, FF_NORTC_MDAY, 0, 0, 0);
     
     if (R_SUCCEEDED(timeGetCurrentTime(TimeType_LocalSystemClock, &timestamp))) {
         time_t rawtime = static_cast<time_t>(timestamp);
         struct tm *timeinfo = localtime(&rawtime);
         output = FAT_TIMESTAMP(timeinfo->tm_year, timeinfo->tm_mon + 1, timeinfo->tm_mday, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
-    }
-	else {
-        /* Fallback to FF_NORTC definitions if the call failed */
-        output = FAT_TIMESTAMP(FF_NORTC_YEAR, FF_NORTC_MON, FF_NORTC_MDAY, 0, 0, 0);
     }
     
     return output;

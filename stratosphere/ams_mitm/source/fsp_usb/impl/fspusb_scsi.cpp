@@ -26,13 +26,6 @@ namespace ams::mitm::fspusb::impl {
         std::memcpy(&this->storage[this->idx], &val, sizeof(u32));
         this->idx += sizeof(u32);
     }
-
-    void SCSIBuffer::Write32BE(u32 val)
-    {
-        u32 tmpval = __builtin_bswap32(val);
-        std::memcpy(&this->storage[this->idx], &tmpval, sizeof(u32));
-        this->idx += sizeof(u32);
-    }
     
     void SCSIBuffer::Write64BE(u64 val)
     {
@@ -431,9 +424,9 @@ namespace ams::mitm::fspusb::impl {
         return status;
     }
 
-    SCSIBlock::SCSIBlock(SCSIDevice *dev) : capacity(0), block_size(0), device(dev), ok(true) {
+    void SCSIContext::Initialize() {
         SCSICommandStatus status, rs_status;
-        u8 lun = this->device->GetDeviceLUN();
+        u8 lun = this->device.GetDeviceLUN();
         
         SCSITestUnitReadyCommand test_unit_ready(lun);
         
@@ -450,7 +443,7 @@ namespace ams::mitm::fspusb::impl {
         u32 lba_bytes = 0;
         
         FSP_USB_LOG("%s: sending TestUnitReady command.", __func__);
-        status = this->device->TransferCommand(test_unit_ready, nullptr);
+        status = this->device.TransferCommand(test_unit_ready, nullptr);
         if (status.status != SCSI_CMD_STATUS_SUCCESS)
         {
             FSP_USB_LOG("%s: TestUnitReady command failed (0x%02X).", __func__, status.status);
@@ -458,7 +451,7 @@ namespace ams::mitm::fspusb::impl {
             /* Manually set back to true */
             this->ok = true;
             FSP_USB_LOG("%s: sending RequestSense command.", __func__);
-            rs_status = this->device->TransferCommand(request_sense, request_sense_response);
+            rs_status = this->device.TransferCommand(request_sense, request_sense_response);
             if (rs_status.status == SCSI_CMD_STATUS_SUCCESS)
             {
                 u8 sense_key = (request_sense_response[2] & 0x0F);
@@ -484,7 +477,7 @@ namespace ams::mitm::fspusb::impl {
                         
                         /* Retry command */
                         FSP_USB_LOG("%s: retrying TestUnitReady command.", __func__);
-                        status = this->device->TransferCommand(test_unit_ready, nullptr);
+                        status = this->device.TransferCommand(test_unit_ready, nullptr);
                         break;
                     case SCSI_SENSE_MEDIUM_ERROR:
                     case SCSI_SENSE_HARDWARE_ERROR:
@@ -522,7 +515,7 @@ namespace ams::mitm::fspusb::impl {
         
         if (this->ok && status.status == SCSI_CMD_STATUS_SUCCESS) {
             FSP_USB_LOG("%s: sending ReadCapacity10 command.", __func__);
-            status = this->device->TransferCommand(read_capacity_10, read_capacity_10_response);
+            status = this->device.TransferCommand(read_capacity_10, read_capacity_10_response);
             if (this->ok && status.status == SCSI_CMD_STATUS_SUCCESS) {
                 FSP_USB_LOG("%s: ReadCapacity10 command succeeded.", __func__);
                 
@@ -541,7 +534,7 @@ namespace ams::mitm::fspusb::impl {
                     /* Issue a Read Capacity 16 command */
                     FSP_USB_LOG("%s: invalid or maxed out total block count returned by ReadCapacity10 command.", __func__);
                     FSP_USB_LOG("%s: sending ReadCapacity16 command.", __func__);
-                    status = this->device->TransferCommand(read_capacity_16, read_capacity_16_response);
+                    status = this->device.TransferCommand(read_capacity_16, read_capacity_16_response);
                     if (this->ok && status.status == SCSI_CMD_STATUS_SUCCESS) {
                         FSP_USB_LOG("%s: ReadCapacity16 command succeeded.", __func__);
                         
@@ -569,7 +562,7 @@ namespace ams::mitm::fspusb::impl {
         }
     }
 
-    int SCSIBlock::ReadSectors(u8 *buffer, u64 sector_offset, u32 num_sectors) {
+    int SCSIContext::ReadSectors(u8 *buffer, u64 sector_offset, u32 num_sectors) {
         if (!this->Ok()) {
             return 0;
         }
@@ -578,18 +571,18 @@ namespace ams::mitm::fspusb::impl {
         
         if ((sector_offset + num_sectors) > SCSI_MAX_BLOCK_10) {
             FSP_USB_LOG("%s: end LBA address exceeds U32_MAX. Sending Read16 command.", __func__);
-            SCSIRead16Command read_16(sector_offset, this->block_size, num_sectors, this->device->GetDeviceLUN());
-            this->device->TransferCommand(read_16, buffer);
+            SCSIRead16Command read_16(sector_offset, this->block_size, num_sectors, this->device.GetDeviceLUN());
+            this->device.TransferCommand(read_16, buffer);
         } else {
             FSP_USB_LOG("%s: sending Read10 command.", __func__);
-            SCSIRead10Command read_10((u32)sector_offset, this->block_size, (u16)num_sectors, this->device->GetDeviceLUN());
-            this->device->TransferCommand(read_10, buffer);
+            SCSIRead10Command read_10((u32)sector_offset, this->block_size, (u16)num_sectors, this->device.GetDeviceLUN());
+            this->device.TransferCommand(read_10, buffer);
         }
         
         return num_sectors;
     }
 
-    int SCSIBlock::WriteSectors(const u8 *buffer, u64 sector_offset, u32 num_sectors) {
+    int SCSIContext::WriteSectors(const u8 *buffer, u64 sector_offset, u32 num_sectors) {
         if (!this->Ok()) {
             return 0;
         }
@@ -598,12 +591,12 @@ namespace ams::mitm::fspusb::impl {
         
         if ((sector_offset + num_sectors) > SCSI_MAX_BLOCK_10) {
             FSP_USB_LOG("%s: end LBA address exceeds U32_MAX. Sending Write16 command.", __func__);
-            SCSIWrite16Command write_16(sector_offset, this->block_size, num_sectors, this->device->GetDeviceLUN());
-            this->device->TransferCommand(write_16, (u8*)buffer);
+            SCSIWrite16Command write_16(sector_offset, this->block_size, num_sectors, this->device.GetDeviceLUN());
+            this->device.TransferCommand(write_16, (u8*)buffer);
         } else {
             FSP_USB_LOG("%s: sending Write10 command.", __func__);
-            SCSIWrite10Command write_10((u32)sector_offset, this->block_size, (u16)num_sectors, this->device->GetDeviceLUN());
-            this->device->TransferCommand(write_10, (u8*)buffer);
+            SCSIWrite10Command write_10((u32)sector_offset, this->block_size, (u16)num_sectors, this->device.GetDeviceLUN());
+            this->device.TransferCommand(write_10, (u8*)buffer);
         }
         
         return num_sectors;

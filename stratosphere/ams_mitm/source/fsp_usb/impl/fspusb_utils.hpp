@@ -4,6 +4,8 @@
 
 #include <cstdio>
 
+/* TODO: remove debug logging and macros when fsp-usb gets stable enough. */
+
 #define FSP_USB_DEBUG
 
 #ifdef FSP_USB_DEBUG

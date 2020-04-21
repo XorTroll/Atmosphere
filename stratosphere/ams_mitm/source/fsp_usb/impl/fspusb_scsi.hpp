@@ -84,7 +84,11 @@ namespace ams::mitm::fspusb::impl {
             void WritePadding(u32 len);
             void Write16BE(u16 val);
             void Write32(u32 val);
-            void Write32BE(u32 val);
+
+            inline void Write32BE(u32 val) {
+                this->Write32(__builtin_bswap32(val));
+            }
+
             void Write64BE(u64 val);
             u8 *GetStorage();
     };
@@ -232,14 +236,20 @@ namespace ams::mitm::fspusb::impl {
             }
     };
 
-    class SCSIBlock {
+    class SCSIContext {
+        NON_COPYABLE(SCSIContext);
+        NON_MOVEABLE(SCSIContext);
         private:
+            SCSIDevice device;
             u64 capacity;
             u32 block_size;
-            SCSIDevice *device;
             bool ok;
+
+            void Initialize();
         public:
-            SCSIBlock(SCSIDevice *dev);
+            SCSIContext(UsbHsClientIfSession *interface, UsbHsClientEpSession *in_ep, UsbHsClientEpSession *out_ep, u8 lun) : device(interface, in_ep, out_ep, lun), capacity(0), block_size(0), ok(true) {
+                this->Initialize();
+            }
 
             int ReadSectors(u8 *buffer, u64 sector_offset, u32 num_sectors);
             int WriteSectors(const u8 *buffer, u64 sector_offset, u32 num_sectors);
@@ -249,26 +259,8 @@ namespace ams::mitm::fspusb::impl {
             }
 
             inline bool Ok() {
-                if (this->device == nullptr) {
-                    return false;
-                }
-                return this->ok && this->device->Ok();
+                return this->ok && this->device.Ok();
             }
     };
 
-    class SCSIDriveContext {
-        private:
-            SCSIDevice device;
-            SCSIBlock block;
-        public:
-            SCSIDriveContext(UsbHsClientIfSession *interface, UsbHsClientEpSession *in_ep, UsbHsClientEpSession *out_ep, u8 lun) : device(interface, in_ep, out_ep, lun), block(&this->device) {}
-
-            inline SCSIBlock &GetBlock() {
-                return this->block;
-            }
-
-            inline bool Ok() {
-                return this->block.Ok();
-            }
-    };
 }
