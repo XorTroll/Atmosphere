@@ -64,7 +64,7 @@ namespace ams::kern {
 
             static constexpr u32 GetCapabilityId(CapabilityType type) {
                 const u32 flag = GetCapabilityFlag(type);
-                if (true /* C++20: std::is_constant_evaluated() */) {
+                if (std::is_constant_evaluated()) {
                     return CountTrailingZero(flag);
                 } else {
                     return static_cast<u32>(__builtin_ctz(flag));
@@ -84,7 +84,7 @@ namespace ams::kern {
             template<CapabilityType Type>
             static constexpr inline u32 CapabilityId = []() -> u32 {
                 const u32 flag = static_cast<u32>(Type) + 1;
-                if (true /* C++20: std::is_constant_evaluated() */) {
+                if (std::is_constant_evaluated()) {
                     for (u32 i = 0; i < BITSIZEOF(u32); i++) {
                         if (flag & (1u << i)) {
                             return i;
@@ -204,9 +204,9 @@ namespace ams::kern {
             u8 irq_access_flags[IrqFlagCount]{};
             u64 core_mask{};
             u64 priority_mask{};
-            util::BitPack32 debug_capabilities;
+            util::BitPack32 debug_capabilities{0};
             s32 handle_table_size{};
-            util::BitPack32 intended_kernel_version;
+            util::BitPack32 intended_kernel_version{0};
             u32 program_type{};
         private:
             static constexpr ALWAYS_INLINE void SetSvcAllowedImpl(u8 *data, u32 id) {
@@ -254,7 +254,7 @@ namespace ams::kern {
             Result SetCapability(const util::BitPack32 cap, u32 &set_flags, u32 &set_svc, KProcessPageTable *page_table);
             Result SetCapabilities(const u32 *caps, s32 num_caps, KProcessPageTable *page_table);
         public:
-            constexpr KCapabilities() : debug_capabilities(0), intended_kernel_version(0) { /* ... */ }
+            constexpr KCapabilities() = default;
 
             Result Initialize(const u32 *caps, s32 num_caps, KProcessPageTable *page_table);
 

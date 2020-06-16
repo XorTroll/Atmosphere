@@ -13,7 +13,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 #include <stratosphere.hpp>
 #include <stratosphere/spl.hpp>
 #include <stratosphere/spl/smc/spl_smc.hpp>
@@ -26,7 +25,7 @@ namespace ams::exosphere {
             R_ABORT_UNLESS(ResultNotPresent());
         }
 
-        return ApiInfo{ util::BitPack64(exosphere_cfg) };
+        return ApiInfo{ util::BitPack64{exosphere_cfg} };
     }
 
     void ForceRebootToRcm() {
@@ -51,19 +50,32 @@ namespace ams::exosphere {
 
     namespace {
 
-        inline Result GetRcmBugPatched(bool *out) {
-            u64 tmp = 0;
-            R_TRY(spl::smc::ConvertResult(spl::smc::GetConfig(&tmp, 1, SplConfigItem_ExosphereHasRcmBugPatch)));
-            *out = (tmp != 0);
-            return ResultSuccess();
+        inline u64 GetU64ConfigItem(spl::ConfigItem cfg) {
+            u64 tmp;
+            R_ABORT_UNLESS(spl::smc::ConvertResult(spl::smc::GetConfig(std::addressof(tmp), 1, static_cast<::SplConfigItem>(cfg))));
+            return tmp;
+        }
+
+        inline bool GetBooleanConfigItem(spl::ConfigItem cfg) {
+            return GetU64ConfigItem(cfg) != 0;
         }
 
     }
 
     bool IsRcmBugPatched() {
-        bool rcm_bug_patched;
-        R_ABORT_UNLESS(GetRcmBugPatched(&rcm_bug_patched));
-        return rcm_bug_patched;
+        return GetBooleanConfigItem(spl::ConfigItem::ExosphereHasRcmBugPatch);
+    }
+
+    bool ShouldBlankProdInfo() {
+        return GetBooleanConfigItem(spl::ConfigItem::ExosphereBlankProdInfo);
+    }
+
+    bool ShouldAllowWritesToProdInfo() {
+        return GetBooleanConfigItem(spl::ConfigItem::ExosphereAllowCalWrites);
+    }
+
+    u64 GetDeviceId() {
+        return GetU64ConfigItem(spl::ConfigItem::DeviceId);
     }
 
 }

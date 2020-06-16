@@ -13,7 +13,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 #include <stratosphere.hpp>
 #include "ams_bpc.h"
 
@@ -35,6 +34,14 @@ namespace ams {
     }
 
     extern ncm::ProgramId CurrentProgramId;
+
+    void InitializeForBoot() {
+        R_ABORT_UNLESS(amsBpcInitialize());
+    }
+
+    void SetInitialRebootPayload(const void *src, size_t src_size) {
+        R_ABORT_UNLESS(amsBpcSetRebootPayload(src, src_size));
+    }
 
     void WEAK_SYMBOL ExceptionHandler(FatalErrorContext *ctx) {
         R_ABORT_UNLESS(amsBpcInitialize());
@@ -174,6 +181,9 @@ extern "C" {
 
 /* Custom abort handler, so that std::abort will trigger these. */
 void abort() {
+    static ams::os::Mutex abort_lock(true);
+    std::scoped_lock lk(abort_lock);
+
     ams::AbortImpl();
     __builtin_unreachable();
 }

@@ -13,6 +13,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <stratosphere.hpp>
 #include "creport_crash_report.hpp"
 #include "creport_utils.hpp"
 
@@ -101,6 +102,9 @@ int main(int argc, char **argv) {
 
     /* Parse crashed PID. */
     os::ProcessId crashed_pid = creport::ParseProcessIdArgument(argv[0]);
+
+    /* Initialize the crash report. */
+    g_crash_report.Initialize();
 
     /* Try to debug the crashed process. */
     g_crash_report.BuildReport(crashed_pid, argv[1][0] == '1');

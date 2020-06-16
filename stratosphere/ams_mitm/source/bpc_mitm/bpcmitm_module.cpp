@@ -13,11 +13,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <stratosphere.hpp>
 #include "../amsmitm_initialization.hpp"
 #include "bpcmitm_module.hpp"
 #include "bpc_mitm_service.hpp"
-#include "bpc_ams_service.hpp"
-#include "bpc_ams_power_utils.hpp"
 
 namespace ams::mitm::bpc {
 
@@ -27,11 +26,8 @@ namespace ams::mitm::bpc {
         constexpr sm::ServiceName DeprecatedMitmServiceName = sm::ServiceName::Encode("bpc:c");
         constexpr size_t          MitmServiceMaxSessions = 13;
 
-        constexpr sm::ServiceName AtmosphereServiceName = sm::ServiceName::Encode("bpc:ams");
-        constexpr size_t          AtmosphereMaxSessions = 3;
-
-        constexpr size_t MaxServers = 2;
-        constexpr size_t MaxSessions = MitmServiceMaxSessions + AtmosphereMaxSessions;
+        constexpr size_t MaxServers = 1;
+        constexpr size_t MaxSessions = MitmServiceMaxSessions;
         using ServerOptions = sf::hipc::DefaultServerManagerOptions;
         sf::hipc::ServerManager<MaxServers, ServerOptions, MaxSessions> g_server_manager;
 
@@ -40,13 +36,6 @@ namespace ams::mitm::bpc {
     void MitmModule::ThreadFunction(void *arg) {
         /* Wait until initialization is complete. */
         mitm::WaitInitialized();
-
-        /* Create bpc:ams. */
-        {
-            Handle bpcams_h;
-            R_ABORT_UNLESS(svcManageNamedPort(&bpcams_h, AtmosphereServiceName.name, AtmosphereMaxSessions));
-            g_server_manager.RegisterServer<bpc::AtmosphereService>(bpcams_h);
-        }
 
         /* Create bpc mitm. */
         const sm::ServiceName service_name = (hos::GetVersion() >= hos::Version_2_0_0) ? MitmServiceName : DeprecatedMitmServiceName;

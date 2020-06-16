@@ -13,6 +13,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <stratosphere.hpp>
 #include "spl_api_impl.hpp"
 
 #include "spl_random_service.hpp"
@@ -104,7 +105,7 @@ namespace {
     constexpr size_t          GeneralMaxSessions = 7;
 
     constexpr sm::ServiceName CryptoServiceName = sm::ServiceName::Encode("spl:mig");
-    constexpr size_t          CryptoMaxSessions = 6;
+    constexpr size_t          CryptoMaxSessions = 7;
 
     constexpr sm::ServiceName SslServiceName = sm::ServiceName::Encode("spl:ssl");
     constexpr size_t          SslMaxSessions = 2;

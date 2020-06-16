@@ -23,12 +23,15 @@ namespace ams::mitm::bpc {
         private:
             enum class CommandId {
                 RebootToFatalError = 65000,
+                SetRebootPayload   = 65001,
             };
         private:
             void RebootToFatalError(const ams::FatalErrorContext &ctx);
+            void SetRebootPayload(const ams::sf::InBuffer &payload);
         public:
             DEFINE_SERVICE_DISPATCH_TABLE {
                 MAKE_SERVICE_COMMAND_META(RebootToFatalError),
+                MAKE_SERVICE_COMMAND_META(SetRebootPayload),
             };
     };
 

@@ -13,6 +13,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <stratosphere.hpp>
 #include "boot_power_utils.hpp"
 #include "fusee-primary_bin.h"
 
@@ -65,6 +66,10 @@ namespace ams::boot {
 
     void RebootSystem() {
         DoRebootToPayload(nullptr);
+    }
+
+    void SetInitialRebootPayload() {
+        ::ams::SetInitialRebootPayload(fusee_primary_bin, fusee_primary_bin_size);
     }
 
     void RebootForFatalError(ams::FatalErrorContext *ctx) {

@@ -13,6 +13,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <stratosphere.hpp>
 #include "dmnt_cheat_service.hpp"
 #include "impl/dmnt_cheat_api.hpp"
 
@@ -37,6 +38,14 @@ namespace ams::dmnt::cheat {
     Result CheatService::ForceOpenCheatProcess() {
         R_UNLESS(R_SUCCEEDED(dmnt::cheat::impl::ForceOpenCheatProcess()), ResultCheatNotAttached());
         return ResultSuccess();
+    }
+
+    Result CheatService::PauseCheatProcess() {
+        return dmnt::cheat::impl::PauseCheatProcess();
+    }
+
+    Result CheatService::ResumeCheatProcess() {
+        return dmnt::cheat::impl::ResumeCheatProcess();
     }
 
     /* ========================================================================================= */
@@ -93,6 +102,18 @@ namespace ams::dmnt::cheat {
 
     Result CheatService::RemoveCheat(u32 cheat_id) {
         return dmnt::cheat::impl::RemoveCheat(cheat_id);
+    }
+
+    Result CheatService::ReadStaticRegister(sf::Out<u64> out, u8 which) {
+        return dmnt::cheat::impl::ReadStaticRegister(out.GetPointer(), which);
+    }
+
+    Result CheatService::WriteStaticRegister(u8 which, u64 value) {
+        return dmnt::cheat::impl::WriteStaticRegister(which, value);
+    }
+
+    Result CheatService::ResetStaticRegisters() {
+        return dmnt::cheat::impl::ResetStaticRegisters();
     }
 
     /* ========================================================================================= */
