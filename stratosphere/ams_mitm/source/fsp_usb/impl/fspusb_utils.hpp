@@ -6,7 +6,7 @@
 
 /* TODO: remove debug logging and macros when fsp-usb gets stable enough. */
 
-#define FSP_USB_DEBUG
+// #define FSP_USB_DEBUG
 
 #ifdef FSP_USB_DEBUG
 #define FSP_USB_LOG(fmt, ...) { \
@@ -27,7 +27,7 @@ namespace ams::mitm::fspusb::impl {
 
     inline void FormatDriveMountName(char *str, u32 drive_mounted_idx) {
         std::memset(str, 0, strlen(str));
-        sprintf(str, "%d:", drive_mounted_idx);
+        std::sprintf(str, "%d:", drive_mounted_idx);
     }
 
 }
