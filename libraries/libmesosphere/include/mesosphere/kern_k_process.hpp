@@ -64,7 +64,7 @@ namespace ams::kern {
             size_t                      system_resource_num_pages{};
             size_t                      memory_release_hint{};
             State                       state{};
-            KLightLock                  lock{};
+            KLightLock                  state_lock{};
             KLightLock                  list_lock{};
             KConditionVariable          cond_var{};
             KAddressArbiter             address_arbiter{};
@@ -123,15 +123,21 @@ namespace ams::kern {
             virtual ~KProcess() { /* ... */ }
 
             Result Initialize(const ams::svc::CreateProcessParameter &params, const KPageGroup &pg, const u32 *caps, s32 num_caps, KResourceLimit *res_limit, KMemoryManager::Pool pool);
+            void Exit();
 
             constexpr const char *GetName() const { return this->name; }
+
+            constexpr ams::svc::ProgramId GetProgramId() const { return this->program_id; }
 
             constexpr u64 GetProcessId() const { return this->process_id; }
 
             constexpr u64 GetCoreMask() const { return this->capabilities.GetCoreMask(); }
             constexpr u64 GetPriorityMask() const { return this->capabilities.GetPriorityMask(); }
 
+            constexpr s32 GetIdealCoreId() const { return this->ideal_core_id; }
             constexpr void SetIdealCoreId(s32 core_id) { this->ideal_core_id = core_id; }
+
+            constexpr bool CheckThreadPriority(s32 prio) const { return ((1ul << prio) & this->GetPriorityMask()) != 0; }
 
             constexpr bool Is64Bit() const { return this->flags & ams::svc::CreateProcessFlag_Is64Bit; }
 
@@ -140,6 +146,10 @@ namespace ams::kern {
             constexpr bool IsSuspended() const {
                 return this->is_suspended;
             }
+
+            bool EnterUserException();
+            bool LeaveUserException();
+            bool ReleaseUserException(KThread *thread);
 
             KThread *GetPreemptionStatePinnedThread(s32 core_id) const {
                 MESOSPHERE_ASSERT(0 <= core_id && core_id < static_cast<s32>(cpu::NumCores));
@@ -157,20 +167,40 @@ namespace ams::kern {
             void ReleaseResource(ams::svc::LimitableResource which, s64 value);
             void ReleaseResource(ams::svc::LimitableResource which, s64 value, s64 hint);
 
+            constexpr KLightLock &GetStateLock() { return this->state_lock; }
+            constexpr KLightLock &GetListLock() { return this->list_lock; }
+
             constexpr KProcessPageTable &GetPageTable() { return this->page_table; }
             constexpr const KProcessPageTable &GetPageTable() const { return this->page_table; }
 
             constexpr KHandleTable &GetHandleTable() { return this->handle_table; }
             constexpr const KHandleTable &GetHandleTable() const { return this->handle_table; }
 
+            size_t GetUsedUserPhysicalMemorySize() const;
+            size_t GetTotalUserPhysicalMemorySize() const;
+            size_t GetUsedNonSystemUserPhysicalMemorySize() const;
+            size_t GetTotalNonSystemUserPhysicalMemorySize() const;
+
             Result CreateThreadLocalRegion(KProcessAddress *out);
             void *GetThreadLocalRegionPointer(KProcessAddress addr);
 
+            constexpr KProcessAddress GetProcessLocalRegionAddress() const { return this->plr_address; }
+
             void AddCpuTime(s64 diff) { this->cpu_time += diff; }
+
+            constexpr s64 GetScheduledCount() const { return this->schedule_count; }
             void IncrementScheduledCount() { ++this->schedule_count; }
 
             void IncrementThreadCount();
             void DecrementThreadCount();
+
+            void ClearRunningThread(KThread *thread) {
+                for (size_t i = 0; i < util::size(this->running_threads); ++i) {
+                    if (this->running_threads[i] == thread) {
+                        this->running_threads[i] = nullptr;
+                    }
+                }
+            }
 
             void RegisterThread(KThread *thread);
             void UnregisterThread(KThread *thread);
@@ -178,6 +208,22 @@ namespace ams::kern {
             Result Run(s32 priority, size_t stack_size);
 
             void SetPreemptionState();
+
+            Result SignalToAddress(KProcessAddress address) {
+                return this->cond_var.SignalToAddress(address);
+            }
+
+            Result WaitForAddress(ams::svc::Handle handle, KProcessAddress address, u32 tag) {
+                return this->cond_var.WaitForAddress(handle, address, tag);
+            }
+
+            void SignalConditionVariable(uintptr_t cv_key, int32_t count) {
+                return this->cond_var.Signal(cv_key, count);
+            }
+
+            Result WaitConditionVariable(KProcessAddress address, uintptr_t cv_key, u32 tag, s64 ns) {
+                return this->cond_var.Wait(address, cv_key, tag, ns);
+            }
 
             static void Switch(KProcess *cur_process, KProcess *next_process) {
                 /* Set the current process pointer. */

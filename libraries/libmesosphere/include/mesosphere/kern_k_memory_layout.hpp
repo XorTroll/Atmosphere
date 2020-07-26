@@ -268,6 +268,16 @@ namespace ams::kern {
                 MESOSPHERE_INIT_ABORT();
             }
 
+            iterator TryFindFirstRegionByType(u32 type_id) {
+                for (auto it = this->begin(); it != this->end(); it++) {
+                    if (it->GetType() == type_id) {
+                        return it;
+                    }
+                }
+
+                return this->end();
+            }
+
             iterator FindFirstDerivedRegion(u32 type_id) {
                 for (auto it = this->begin(); it != this->end(); it++) {
                     if (it->IsDerivedFrom(type_id)) {
@@ -275,6 +285,16 @@ namespace ams::kern {
                     }
                 }
                 MESOSPHERE_INIT_ABORT();
+            }
+
+            iterator TryFindFirstDerivedRegion(u32 type_id) {
+                for (auto it = this->begin(); it != this->end(); it++) {
+                    if (it->IsDerivedFrom(type_id)) {
+                        return it;
+                    }
+                }
+
+                return this->end();
             }
 
             DerivedRegionExtents GetDerivedRegionExtents(u32 type_id) const {
@@ -504,6 +524,33 @@ namespace ams::kern {
                 return *GetVirtualLinearMemoryRegionTree().FindContainingRegion(GetInteger(address));
             }
 
+            static NOINLINE const KMemoryRegion *TryGetKernelTraceBufferRegion() {
+                auto &tree = GetPhysicalMemoryRegionTree();
+                if (KMemoryRegionTree::const_iterator it = tree.TryFindFirstDerivedRegion(KMemoryRegionType_KernelTraceBuffer); it != tree.end()) {
+                    return std::addressof(*it);
+                } else {
+                    return nullptr;
+                }
+            }
+
+            static NOINLINE const KMemoryRegion *TryGetOnMemoryBootImageRegion() {
+                auto &tree = GetPhysicalMemoryRegionTree();
+                if (KMemoryRegionTree::const_iterator it = tree.TryFindFirstDerivedRegion(KMemoryRegionType_OnMemoryBootImage); it != tree.end()) {
+                    return std::addressof(*it);
+                } else {
+                    return nullptr;
+                }
+            }
+
+            static NOINLINE const KMemoryRegion *TryGetDTBRegion() {
+                auto &tree = GetPhysicalMemoryRegionTree();
+                if (KMemoryRegionTree::const_iterator it = tree.TryFindFirstDerivedRegion(KMemoryRegionType_DTB); it != tree.end()) {
+                    return std::addressof(*it);
+                } else {
+                    return nullptr;
+                }
+            }
+
             static NOINLINE bool IsHeapPhysicalAddress(const KMemoryRegion **out, KPhysicalAddress address, const KMemoryRegion *hint = nullptr) {
                 auto &tree = GetPhysicalLinearMemoryRegionTree();
                 KMemoryRegionTree::const_iterator it = tree.end();
@@ -542,6 +589,48 @@ namespace ams::kern {
                         }
                         it++;
                     } while (it != tree.end() && it->IsDerivedFrom(KMemoryRegionType_DramNonKernel));
+                }
+                return false;
+            }
+
+            static NOINLINE bool IsLinearMappedPhysicalAddress(const KMemoryRegion **out, KPhysicalAddress address, const KMemoryRegion *hint = nullptr) {
+                auto &tree = GetPhysicalLinearMemoryRegionTree();
+                KMemoryRegionTree::const_iterator it = tree.end();
+                if (hint != nullptr) {
+                    it = tree.iterator_to(*hint);
+                }
+                if (it == tree.end() || !it->Contains(GetInteger(address))) {
+                    it = tree.FindContainingRegion(GetInteger(address));
+                }
+                if (it != tree.end() && it->IsDerivedFrom(KMemoryRegionAttr_LinearMapped)) {
+                    if (out) {
+                        *out = std::addressof(*it);
+                    }
+                    return true;
+                }
+                return false;
+            }
+
+            static NOINLINE bool IsLinearMappedPhysicalAddress(const KMemoryRegion **out, KPhysicalAddress address, size_t size, const KMemoryRegion *hint = nullptr) {
+                auto &tree = GetPhysicalLinearMemoryRegionTree();
+                KMemoryRegionTree::const_iterator it = tree.end();
+                if (hint != nullptr) {
+                    it = tree.iterator_to(*hint);
+                }
+                if (it == tree.end() || !it->Contains(GetInteger(address))) {
+                    it = tree.FindContainingRegion(GetInteger(address));
+                }
+                if (it != tree.end() && it->IsDerivedFrom(KMemoryRegionAttr_LinearMapped)) {
+                    const uintptr_t last_address = GetInteger(address) + size - 1;
+                    do {
+                        if (last_address <= it->GetLastAddress()) {
+                            if (out) {
+                                *out = std::addressof(*it);
+                            }
+                            return true;
+                        }
+                        it++;
+                    } while (it != tree.end() && it->IsDerivedFrom(KMemoryRegionAttr_LinearMapped));
                 }
                 return false;
             }

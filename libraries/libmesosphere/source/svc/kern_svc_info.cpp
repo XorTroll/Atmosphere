@@ -26,14 +26,23 @@ namespace ams::kern::svc {
             ON_SCOPE_EXIT{ MESOSPHERE_LOG("GetInfo returned %016lx\n", *out); };
 
             switch (info_type) {
+                case ams::svc::InfoType_CoreMask:
+                case ams::svc::InfoType_PriorityMask:
                 case ams::svc::InfoType_AliasRegionAddress:
                 case ams::svc::InfoType_AliasRegionSize:
                 case ams::svc::InfoType_HeapRegionAddress:
                 case ams::svc::InfoType_HeapRegionSize:
+                case ams::svc::InfoType_TotalMemorySize:
+                case ams::svc::InfoType_UsedMemorySize:
                 case ams::svc::InfoType_AslrRegionAddress:
                 case ams::svc::InfoType_AslrRegionSize:
                 case ams::svc::InfoType_StackRegionAddress:
                 case ams::svc::InfoType_StackRegionSize:
+                case ams::svc::InfoType_ProgramId:
+                case ams::svc::InfoType_InitialProcessIdRange:
+                case ams::svc::InfoType_UserExceptionContextAddress:
+                case ams::svc::InfoType_TotalNonSystemMemorySize:
+                case ams::svc::InfoType_UsedNonSystemMemorySize:
                     {
                         /* These info types don't support non-zero subtypes. */
                         R_UNLESS(info_subtype == 0,  svc::ResultInvalidCombination());
@@ -43,6 +52,12 @@ namespace ams::kern::svc {
                         R_UNLESS(process.IsNotNull(), svc::ResultInvalidHandle());
 
                         switch (info_type) {
+                            case ams::svc::InfoType_CoreMask:
+                                *out = process->GetCoreMask();
+                                break;
+                            case ams::svc::InfoType_PriorityMask:
+                                *out = process->GetPriorityMask();
+                                break;
                             case ams::svc::InfoType_AliasRegionAddress:
                                 *out = GetInteger(process->GetPageTable().GetAliasRegionStart());
                                 break;
@@ -55,6 +70,12 @@ namespace ams::kern::svc {
                             case ams::svc::InfoType_HeapRegionSize:
                                 *out = process->GetPageTable().GetHeapRegionSize();
                                 break;
+                            case ams::svc::InfoType_TotalMemorySize:
+                                *out = process->GetTotalUserPhysicalMemorySize();
+                                break;
+                            case ams::svc::InfoType_UsedMemorySize:
+                                *out = process->GetUsedUserPhysicalMemorySize();
+                                break;
                             case ams::svc::InfoType_AslrRegionAddress:
                                 *out = GetInteger(process->GetPageTable().GetAliasCodeRegionStart());
                                 break;
@@ -66,6 +87,21 @@ namespace ams::kern::svc {
                                 break;
                             case ams::svc::InfoType_StackRegionSize:
                                 *out = process->GetPageTable().GetStackRegionSize();
+                                break;
+                            case ams::svc::InfoType_ProgramId:
+                                *out = process->GetProgramId();
+                                break;
+                            case ams::svc::InfoType_InitialProcessIdRange:
+                                /* TODO: Detect exactly 4.0.0 target firmware, do the right thing. */
+                                return svc::ResultInvalidEnumValue();
+                            case ams::svc::InfoType_UserExceptionContextAddress:
+                                *out = GetInteger(process->GetProcessLocalRegionAddress());
+                                break;
+                            case ams::svc::InfoType_TotalNonSystemMemorySize:
+                                *out = process->GetTotalNonSystemUserPhysicalMemorySize();
+                                break;
+                            case ams::svc::InfoType_UsedNonSystemMemorySize:
+                                *out = process->GetUsedNonSystemUserPhysicalMemorySize();
                                 break;
                             MESOSPHERE_UNREACHABLE_DEFAULT_CASE();
                         }

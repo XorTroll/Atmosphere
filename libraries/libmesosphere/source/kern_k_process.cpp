@@ -157,6 +157,10 @@ namespace ams::kern {
         MESOSPHERE_UNIMPLEMENTED();
     }
 
+    void KProcess::Exit() {
+        MESOSPHERE_UNIMPLEMENTED();
+    }
+
     Result KProcess::CreateThreadLocalRegion(KProcessAddress *out) {
         KThreadLocalPage *tlp = nullptr;
         KProcessAddress   tlr = Null<KProcessAddress>;
@@ -268,6 +272,25 @@ namespace ams::kern {
         }
     }
 
+    bool KProcess::EnterUserException() {
+        MESOSPHERE_UNIMPLEMENTED();
+    }
+
+    bool KProcess::LeaveUserException() {
+        return this->ReleaseUserException(GetCurrentThreadPointer());
+    }
+
+    bool KProcess::ReleaseUserException(KThread *thread) {
+        KScopedSchedulerLock sl;
+
+        if (this->exception_thread == thread) {
+            /* TODO */
+            MESOSPHERE_UNIMPLEMENTED();
+        } else {
+            return false;
+        }
+    }
+
     void KProcess::RegisterThread(KThread *thread) {
         KScopedLightLock lk(this->list_lock);
 
@@ -280,11 +303,53 @@ namespace ams::kern {
         this->thread_list.erase(this->thread_list.iterator_to(*thread));
     }
 
+    size_t KProcess::GetUsedUserPhysicalMemorySize() const {
+        const size_t norm_size  = this->page_table.GetNormalMemorySize();
+        const size_t other_size = this->code_size + this->main_thread_stack_size;
+        const size_t sec_size   = KSystemControl::CalculateRequiredSecureMemorySize(this->system_resource_num_pages * PageSize, this->memory_pool);
+
+        return norm_size + other_size + sec_size;
+    }
+
+    size_t KProcess::GetTotalUserPhysicalMemorySize() const {
+        /* Get the amount of free and used size. */
+        const size_t free_size = this->resource_limit->GetFreeValue(ams::svc::LimitableResource_PhysicalMemoryMax);
+        const size_t used_size = this->GetUsedNonSystemUserPhysicalMemorySize();
+        const size_t max_size  = this->max_process_memory;
+
+        if (used_size + free_size > max_size) {
+            return max_size;
+        } else {
+            return free_size + used_size;
+        }
+    }
+
+    size_t KProcess::GetUsedNonSystemUserPhysicalMemorySize() const {
+        const size_t norm_size  = this->page_table.GetNormalMemorySize();
+        const size_t other_size = this->code_size + this->main_thread_stack_size;
+
+        return norm_size + other_size;
+    }
+
+    size_t KProcess::GetTotalNonSystemUserPhysicalMemorySize() const {
+        /* Get the amount of free and used size. */
+        const size_t free_size = this->resource_limit->GetFreeValue(ams::svc::LimitableResource_PhysicalMemoryMax);
+        const size_t used_size = this->GetUsedUserPhysicalMemorySize();
+        const size_t sec_size  = KSystemControl::CalculateRequiredSecureMemorySize(this->system_resource_num_pages * PageSize, this->memory_pool);
+        const size_t max_size  = this->max_process_memory;
+
+        if (used_size + free_size > max_size) {
+            return max_size - sec_size;
+        } else {
+            return free_size + used_size - sec_size;
+        }
+    }
+
     Result KProcess::Run(s32 priority, size_t stack_size) {
         MESOSPHERE_ASSERT_THIS();
 
         /* Lock ourselves, to prevent concurrent access. */
-        KScopedLightLock lk(this->lock);
+        KScopedLightLock lk(this->state_lock);
 
         /* Validate that we're in a state where we can initialize. */
         const auto state = this->state;

@@ -56,6 +56,22 @@ namespace ams::kern::arch::arm64 {
                 return this->page_table.QueryInfo(out_info, out_page_info, addr);
             }
 
+            Result QueryStaticMapping(KProcessAddress *out, KPhysicalAddress address, size_t size) const {
+                return this->page_table.QueryStaticMapping(out, address, size);
+            }
+
+            Result QueryIoMapping(KProcessAddress *out, KPhysicalAddress address, size_t size) const {
+                return this->page_table.QueryIoMapping(out, address, size);
+            }
+
+            Result MapMemory(KProcessAddress dst_address, KProcessAddress src_address, size_t size) {
+                return this->page_table.MapMemory(dst_address, src_address, size);
+            }
+
+            Result UnmapMemory(KProcessAddress dst_address, KProcessAddress src_address, size_t size) {
+                return this->page_table.UnmapMemory(dst_address, src_address, size);
+            }
+
             Result MapIo(KPhysicalAddress phys_addr, size_t size, KMemoryPermission perm) {
                 return this->page_table.MapIo(phys_addr, size, perm);
             }
@@ -88,6 +104,50 @@ namespace ams::kern::arch::arm64 {
                 return this->page_table.MakeAndOpenPageGroup(out, address, num_pages, state_mask, state, perm_mask, perm, attr_mask, attr);
             }
 
+            Result LockForIpcUserBuffer(KPhysicalAddress *out, KProcessAddress address, size_t size) {
+                return this->page_table.LockForIpcUserBuffer(out, address, size);
+            }
+
+            Result UnlockForIpcUserBuffer(KProcessAddress address, size_t size) {
+                return this->page_table.UnlockForIpcUserBuffer(address, size);
+            }
+
+            Result CopyMemoryFromLinearToUser(KProcessAddress dst_addr, size_t size, KProcessAddress src_addr, u32 src_state_mask, u32 src_state, KMemoryPermission src_test_perm, u32 src_attr_mask, u32 src_attr) {
+                return this->page_table.CopyMemoryFromLinearToUser(dst_addr, size, src_addr, src_state_mask, src_state, src_test_perm, src_attr_mask, src_attr);
+            }
+
+            Result CopyMemoryFromLinearToKernel(KProcessAddress dst_addr, size_t size, KProcessAddress src_addr, u32 src_state_mask, u32 src_state, KMemoryPermission src_test_perm, u32 src_attr_mask, u32 src_attr) {
+                return this->page_table.CopyMemoryFromLinearToKernel(dst_addr, size, src_addr, src_state_mask, src_state, src_test_perm, src_attr_mask, src_attr);
+            }
+
+            Result CopyMemoryFromUserToLinear(KProcessAddress dst_addr, size_t size, u32 dst_state_mask, u32 dst_state, KMemoryPermission dst_test_perm, u32 dst_attr_mask, u32 dst_attr, KProcessAddress src_addr) {
+                return this->page_table.CopyMemoryFromUserToLinear(dst_addr, size, dst_state_mask, dst_state, dst_test_perm, dst_attr_mask, dst_attr, src_addr);
+            }
+
+            Result CopyMemoryFromKernelToLinear(KProcessAddress dst_addr, size_t size, u32 dst_state_mask, u32 dst_state, KMemoryPermission dst_test_perm, u32 dst_attr_mask, u32 dst_attr, KProcessAddress src_addr) {
+                return this->page_table.CopyMemoryFromKernelToLinear(dst_addr, size, dst_state_mask, dst_state, dst_test_perm, dst_attr_mask, dst_attr, src_addr);
+            }
+
+            Result CopyMemoryFromHeapToHeap(KProcessPageTable &dst_page_table, KProcessAddress dst_addr, size_t size, u32 dst_state_mask, u32 dst_state, KMemoryPermission dst_test_perm, u32 dst_attr_mask, u32 dst_attr, KProcessAddress src_addr, u32 src_state_mask, u32 src_state, KMemoryPermission src_test_perm, u32 src_attr_mask, u32 src_attr) {
+                return this->page_table.CopyMemoryFromHeapToHeap(dst_page_table.page_table, dst_addr, size, dst_state_mask, dst_state, dst_test_perm, dst_attr_mask, dst_attr, src_addr, src_state_mask, src_state, src_test_perm, src_attr_mask, src_attr);
+            }
+
+            Result CopyMemoryFromHeapToHeapWithoutCheckDestination(KProcessPageTable &dst_page_table, KProcessAddress dst_addr, size_t size, u32 dst_state_mask, u32 dst_state, KMemoryPermission dst_test_perm, u32 dst_attr_mask, u32 dst_attr, KProcessAddress src_addr, u32 src_state_mask, u32 src_state, KMemoryPermission src_test_perm, u32 src_attr_mask, u32 src_attr) {
+                return this->page_table.CopyMemoryFromHeapToHeapWithoutCheckDestination(dst_page_table.page_table, dst_addr, size, dst_state_mask, dst_state, dst_test_perm, dst_attr_mask, dst_attr, src_addr, src_state_mask, src_state, src_test_perm, src_attr_mask, src_attr);
+            }
+
+            Result SetupForIpc(KProcessAddress *out_dst_addr, size_t size, KProcessAddress src_addr, KProcessPageTable &src_page_table, KMemoryPermission test_perm, KMemoryState dst_state, bool send) {
+                return this->page_table.SetupForIpc(out_dst_addr, size, src_addr, src_page_table.page_table, test_perm, dst_state, send);
+            }
+
+            Result CleanupForIpcServer(KProcessAddress address, size_t size, KMemoryState dst_state, KProcess *server_process) {
+                return this->page_table.CleanupForIpcServer(address, size, dst_state, server_process);
+            }
+
+            Result CleanupForIpcClient(KProcessAddress address, size_t size, KMemoryState dst_state) {
+                return this->page_table.CleanupForIpcClient(address, size, dst_state);
+            }
+
             bool GetPhysicalAddress(KPhysicalAddress *out, KProcessAddress address) const {
                 return this->page_table.GetPhysicalAddress(out, address);
             }
@@ -108,6 +168,8 @@ namespace ams::kern::arch::arm64 {
             size_t GetStackRegionSize()     const { return this->page_table.GetStackRegionSize(); }
             size_t GetKernelMapRegionSize() const { return this->page_table.GetKernelMapRegionSize(); }
             size_t GetAliasCodeRegionSize() const { return this->page_table.GetAliasCodeRegionSize(); }
+
+            size_t GetNormalMemorySize() const { return this->page_table.GetNormalMemorySize(); }
 
             KPhysicalAddress GetHeapPhysicalAddress(KVirtualAddress address) const {
                 /* TODO: Better way to convert address type? */

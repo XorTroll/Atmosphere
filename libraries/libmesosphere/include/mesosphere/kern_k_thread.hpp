@@ -113,8 +113,8 @@ namespace ams::kern {
         private:
             static constexpr size_t PriorityInheritanceCountMax = 10;
             union SyncObjectBuffer {
-                KSynchronizationObject *sync_objects[ams::svc::MaxWaitSynchronizationHandleCount];
-                ams::svc::Handle        handles[ams::svc::MaxWaitSynchronizationHandleCount * (sizeof(KSynchronizationObject *) / sizeof(ams::svc::Handle))];
+                KSynchronizationObject *sync_objects[ams::svc::ArgumentHandleCountMax];
+                ams::svc::Handle        handles[ams::svc::ArgumentHandleCountMax * (sizeof(KSynchronizationObject *) / sizeof(ams::svc::Handle))];
 
                 constexpr SyncObjectBuffer() : sync_objects() { /* ... */ }
             };
@@ -268,6 +268,9 @@ namespace ams::kern {
             ALWAYS_INLINE void AddWaiterImpl(KThread *thread);
             ALWAYS_INLINE void RemoveWaiterImpl(KThread *thread);
             ALWAYS_INLINE static void RestorePriority(KThread *thread);
+
+            void StartTermination();
+            void FinishTermination();
         public:
             constexpr u64 GetThreadId() const { return this->thread_id; }
 
@@ -281,6 +284,15 @@ namespace ams::kern {
             NOINLINE KThreadContext *GetContextForSchedulerLoop();
 
             constexpr uintptr_t GetConditionVariableKey() const { return this->condvar_key; }
+
+            constexpr void SetupForConditionVariableCompare(uintptr_t cv_key, int priority) {
+                this->condvar_key = cv_key;
+                this->priority    = priority;
+            }
+
+            void ClearConditionVariable() {
+                this->cond_var = nullptr;
+            }
 
             constexpr s32 GetIdealCore() const { return this->ideal_core_id; }
             constexpr s32 GetActiveCore() const { return this->core_id; }
@@ -305,25 +317,49 @@ namespace ams::kern {
             KThread *RemoveWaiterByKey(s32 *out_num_waiters, KProcessAddress key);
 
             constexpr KProcessAddress GetAddressKey() const { return this->arbiter_key; }
+            constexpr u32 GetAddressKeyValue() const { return this->arbiter_value; }
             constexpr void SetAddressKey(KProcessAddress key) { this->arbiter_key = key; }
+            constexpr void SetAddressKey(KProcessAddress key, u32 val) { this->arbiter_key = key; this->arbiter_value = val; }
+
             constexpr void SetLockOwner(KThread *owner) { this->lock_owner = owner; }
             constexpr KThread *GetLockOwner() const { return this->lock_owner; }
 
             constexpr void SetSyncedObject(KSynchronizationObject *obj, Result wait_res) {
+                MESOSPHERE_ASSERT_THIS();
+
                 this->synced_object = obj;
                 this->wait_result = wait_res;
             }
+
+            constexpr Result GetWaitResult(KSynchronizationObject **out) const {
+                MESOSPHERE_ASSERT_THIS();
+
+                *out = this->synced_object;
+                return this->wait_result;
+            }
+
+            bool IsWaitCancelled() const { return this->wait_cancelled; }
+            void ClearWaitCancelled() { this->wait_cancelled = false; }
+
+            void ClearCancellable() { this->cancellable = false; }
+            void SetCancellable() { this->cancellable = true; }
 
             bool HasWaiters() const { return !this->waiter_list.empty(); }
 
             constexpr s64 GetLastScheduledTick() const { return this->last_scheduled_tick; }
             constexpr void SetLastScheduledTick(s64 tick) { this->last_scheduled_tick = tick; }
 
+            constexpr s64 GetYieldScheduleCount() const { return this->schedule_count; }
+            constexpr void SetYieldScheduleCount(s64 count) { this->schedule_count = count; }
+
             constexpr KProcess *GetOwnerProcess() const { return this->parent; }
             constexpr bool IsUserThread() const { return this->parent != nullptr; }
 
             constexpr KProcessAddress GetThreadLocalRegionAddress() const { return this->tls_address; }
             constexpr void           *GetThreadLocalRegionHeapAddress() const { return this->tls_heap_address; }
+
+            constexpr KSynchronizationObject **GetSynchronizationObjectBuffer() { return std::addressof(this->sync_object_buffer.sync_objects[0]); }
+            constexpr ams::svc::Handle *GetHandleBuffer() { return std::addressof(this->sync_object_buffer.handles[sizeof(this->sync_object_buffer.sync_objects) / sizeof(ams::svc::Handle) - ams::svc::ArgumentHandleCountMax]); }
 
             constexpr u16 GetUserPreemptionState() const { return *GetPointer<u16>(this->tls_address + 0x100); }
             constexpr void SetKernelPreemptionState(u16 state) const { *GetPointer<u16>(this->tls_address + 0x100 + sizeof(u16)) = state; }
@@ -351,6 +387,8 @@ namespace ams::kern {
 
             Result Run();
             void Exit();
+
+            Result Sleep(s64 timeout);
 
             ALWAYS_INLINE void *GetStackTop() const { return reinterpret_cast<StackParameters *>(this->kernel_stack_top) - 1; }
             ALWAYS_INLINE void *GetKernelStackTop() const { return this->kernel_stack_top; }

@@ -116,12 +116,17 @@ namespace ams::kern {
                 }
             }
 
+            static NOINLINE void ClearPreviousThread(KThread *thread);
+
             static NOINLINE void OnThreadStateChanged(KThread *thread, KThread::ThreadState old_state);
             static NOINLINE void OnThreadPriorityChanged(KThread *thread, s32 old_priority);
             static NOINLINE void OnThreadAffinityMaskChanged(KThread *thread, const KAffinityMask &old_affinity, s32 old_core);
 
-            /* TODO: Yield operations */
             static NOINLINE void RotateScheduledQueue(s32 priority, s32 core_id);
+
+            static NOINLINE void YieldWithoutCoreMigration();
+            static NOINLINE void YieldWithCoreMigration();
+            static NOINLINE void YieldToAnyThread();
         private:
             /* Instanced private API. */
             void ScheduleImpl();
