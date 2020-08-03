@@ -13,22 +13,15 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
- 
-#ifndef FUSEE_EMU_DEV_H
-#define FUSEE_EMU_DEV_H
 
-#include <stddef.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include "device_partition.h"
-
-#define EMUDEV_MAX_DEVICES 16
-
-int emudev_mount_device(const char *name, const device_partition_t *devpart, const char *origin_path, int num_parts, uint64_t part_limit);
-int emudev_register_device(const char *name);
-int emudev_unregister_device(const char *name);
-int emudev_unmount_device(const char *name);        /* also unregisters. */
-
-int emudev_unmount_all(void);
-
-#endif
+/* ams::kern::svc::PatchSvcTableEntry(void (* const*)(), unsigned int, void (*)()) */
+.section    .text._ZN3ams4kern3svc18PatchSvcTableEntryEPKPFvvEjS3_, "ax", %progbits
+.global     _ZN3ams4kern3svc18PatchSvcTableEntryEPKPFvvEjS3_
+.type       _ZN3ams4kern3svc18PatchSvcTableEntryEPKPFvvEjS3_, %function
+_ZN3ams4kern3svc18PatchSvcTableEntryEPKPFvvEjS3_:
+    /* This function violates const correctness by design, to patch the svc tables. */
+    /* The svc tables live in .rodata (.rel.ro), but must be patched by initial constructors */
+    /* to support firmware-specific table entries. */
+    mov w1, w1
+    str x2, [x0, x1, lsl #3]
+    ret

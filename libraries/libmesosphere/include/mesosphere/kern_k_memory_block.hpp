@@ -174,6 +174,8 @@ namespace ams::kern {
         KMemoryAttribute_Uncached       = ams::svc::MemoryAttribute_Uncached,
 
         KMemoryAttribute_AnyLocked      = 0x80,
+
+        KMemoryAttribute_SetMask        = KMemoryAttribute_Uncached,
     };
 
     struct KMemoryInfo {
@@ -220,6 +222,10 @@ namespace ams::kern {
 
         constexpr u16 GetIpcLockCount() const {
             return this->ipc_lock_count;
+        }
+
+        constexpr KMemoryState GetState() const {
+            return this->state;
         }
 
         constexpr KMemoryPermission GetPermission() const {
@@ -387,6 +393,30 @@ namespace ams::kern {
 
                 this->address = addr;
                 this->num_pages -= block->num_pages;
+            }
+
+            constexpr void ShareToDevice(KMemoryPermission new_perm) {
+                /* We must either be shared or have a zero lock count. */
+                MESOSPHERE_ASSERT((this->attribute & KMemoryAttribute_DeviceShared) == KMemoryAttribute_DeviceShared || this->device_use_count == 0);
+
+                /* Share. */
+                const u16 new_count = ++this->device_use_count;
+                MESOSPHERE_ABORT_UNLESS(new_count > 0);
+
+                this->attribute = static_cast<KMemoryAttribute>(this->attribute | KMemoryAttribute_DeviceShared);
+            }
+
+            constexpr void UnshareToDevice(KMemoryPermission new_perm) {
+                /* We must be shared. */
+                MESOSPHERE_ASSERT((this->attribute & KMemoryAttribute_DeviceShared) == KMemoryAttribute_DeviceShared);
+
+                /* Unhare. */
+                const u16 old_count = this->device_use_count--;
+                MESOSPHERE_ABORT_UNLESS(old_count > 0);
+
+                if (old_count == 1) {
+                    this->attribute = static_cast<KMemoryAttribute>(this->attribute & ~KMemoryAttribute_DeviceShared);
+                }
             }
 
             constexpr void LockForIpc(KMemoryPermission new_perm) {

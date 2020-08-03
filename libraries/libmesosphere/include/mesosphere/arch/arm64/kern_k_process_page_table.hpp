@@ -44,6 +44,10 @@ namespace ams::kern::arch::arm64 {
                 return this->page_table.SetProcessMemoryPermission(addr, size, perm);
             }
 
+            Result SetMemoryAttribute(KProcessAddress addr, size_t size, u32 mask, u32 attr) {
+                return this->page_table.SetMemoryAttribute(addr, size, mask, attr);
+            }
+
             Result SetHeapSize(KProcessAddress *out, size_t size) {
                 return this->page_table.SetHeapSize(out, size);
             }
@@ -54,6 +58,10 @@ namespace ams::kern::arch::arm64 {
 
             Result QueryInfo(KMemoryInfo *out_info, ams::svc::PageInfo *out_page_info, KProcessAddress addr) const {
                 return this->page_table.QueryInfo(out_info, out_page_info, addr);
+            }
+
+            Result QueryPhysicalAddress(ams::svc::PhysicalMemoryInfo *out, KProcessAddress address) const {
+                return this->page_table.QueryPhysicalAddress(out, address);
             }
 
             Result QueryStaticMapping(KProcessAddress *out, KPhysicalAddress address, size_t size) const {
@@ -72,6 +80,14 @@ namespace ams::kern::arch::arm64 {
                 return this->page_table.UnmapMemory(dst_address, src_address, size);
             }
 
+            Result MapCodeMemory(KProcessAddress dst_address, KProcessAddress src_address, size_t size) {
+                return this->page_table.MapCodeMemory(dst_address, src_address, size);
+            }
+
+            Result UnmapCodeMemory(KProcessAddress dst_address, KProcessAddress src_address, size_t size) {
+                return this->page_table.UnmapCodeMemory(dst_address, src_address, size);
+            }
+
             Result MapIo(KPhysicalAddress phys_addr, size_t size, KMemoryPermission perm) {
                 return this->page_table.MapIo(phys_addr, size, perm);
             }
@@ -88,12 +104,20 @@ namespace ams::kern::arch::arm64 {
                 return this->page_table.MapPageGroup(addr, pg, state, perm);
             }
 
+            Result UnmapPageGroup(KProcessAddress address, const KPageGroup &pg, KMemoryState state) {
+                return this->page_table.UnmapPageGroup(address, pg, state);
+            }
+
             Result MapPages(KProcessAddress *out_addr, size_t num_pages, size_t alignment, KPhysicalAddress phys_addr, KMemoryState state, KMemoryPermission perm) {
                 return this->page_table.MapPages(out_addr, num_pages, alignment, phys_addr, state, perm);
             }
 
             Result MapPages(KProcessAddress *out_addr, size_t num_pages, KMemoryState state, KMemoryPermission perm) {
                 return this->page_table.MapPages(out_addr, num_pages, state, perm);
+            }
+
+            Result MapPages(KProcessAddress address, size_t num_pages, KMemoryState state, KMemoryPermission perm) {
+                return this->page_table.MapPages(address, num_pages, state, perm);
             }
 
             Result UnmapPages(KProcessAddress addr, size_t num_pages, KMemoryState state) {
@@ -104,12 +128,52 @@ namespace ams::kern::arch::arm64 {
                 return this->page_table.MakeAndOpenPageGroup(out, address, num_pages, state_mask, state, perm_mask, perm, attr_mask, attr);
             }
 
+            Result MakeAndOpenPageGroupContiguous(KPageGroup *out, KProcessAddress address, size_t num_pages, u32 state_mask, u32 state, u32 perm_mask, u32 perm, u32 attr_mask, u32 attr) {
+                return this->page_table.MakeAndOpenPageGroupContiguous(out, address, num_pages, state_mask, state, perm_mask, perm, attr_mask, attr);
+            }
+
+            Result InvalidateProcessDataCache(KProcessAddress address, size_t size) {
+                return this->page_table.InvalidateProcessDataCache(address, size);
+            }
+
+            Result ReadDebugMemory(void *buffer, KProcessAddress address, size_t size) {
+                return this->page_table.ReadDebugMemory(buffer, address, size);
+            }
+
+            Result WriteDebugMemory(KProcessAddress address, const void *buffer, size_t size) {
+                return this->page_table.WriteDebugMemory(address, buffer, size);
+            }
+
+            Result LockForDeviceAddressSpace(KPageGroup *out, KProcessAddress address, size_t size, KMemoryPermission perm, bool is_aligned) {
+                return this->page_table.LockForDeviceAddressSpace(out, address, size, perm, is_aligned);
+            }
+
+            Result UnlockForDeviceAddressSpace(KProcessAddress address, size_t size) {
+                return this->page_table.UnlockForDeviceAddressSpace(address, size);
+            }
+
             Result LockForIpcUserBuffer(KPhysicalAddress *out, KProcessAddress address, size_t size) {
                 return this->page_table.LockForIpcUserBuffer(out, address, size);
             }
 
             Result UnlockForIpcUserBuffer(KProcessAddress address, size_t size) {
                 return this->page_table.UnlockForIpcUserBuffer(address, size);
+            }
+
+            Result LockForTransferMemory(KPageGroup *out, KProcessAddress address, size_t size, KMemoryPermission perm) {
+                return this->page_table.LockForTransferMemory(out, address, size, perm);
+            }
+
+            Result UnlockForTransferMemory(KProcessAddress address, size_t size, const KPageGroup &pg) {
+                return this->page_table.UnlockForTransferMemory(address, size, pg);
+            }
+
+            Result LockForCodeMemory(KPageGroup *out, KProcessAddress address, size_t size) {
+                return this->page_table.LockForCodeMemory(out, address, size);
+            }
+
+            Result UnlockForCodeMemory(KProcessAddress address, size_t size, const KPageGroup &pg) {
+                return this->page_table.UnlockForCodeMemory(address, size, pg);
             }
 
             Result CopyMemoryFromLinearToUser(KProcessAddress dst_addr, size_t size, KProcessAddress src_addr, u32 src_state_mask, u32 src_state, KMemoryPermission src_test_perm, u32 src_attr_mask, u32 src_attr) {
@@ -148,11 +212,39 @@ namespace ams::kern::arch::arm64 {
                 return this->page_table.CleanupForIpcClient(address, size, dst_state);
             }
 
+            Result MapPhysicalMemory(KProcessAddress address, size_t size) {
+                return this->page_table.MapPhysicalMemory(address, size);
+            }
+
+            Result UnmapPhysicalMemory(KProcessAddress address, size_t size) {
+                return this->page_table.UnmapPhysicalMemory(address, size);
+            }
+
+            Result MapPhysicalMemoryUnsafe(KProcessAddress address, size_t size) {
+                return this->page_table.MapPhysicalMemoryUnsafe(address, size);
+            }
+
+            Result UnmapPhysicalMemoryUnsafe(KProcessAddress address, size_t size) {
+                return this->page_table.UnmapPhysicalMemoryUnsafe(address, size);
+            }
+
+            void DumpTable() const {
+                return this->page_table.DumpTable();
+            }
+
+            void DumpMemoryBlocks() const {
+                return this->page_table.DumpMemoryBlocks();
+            }
+
             bool GetPhysicalAddress(KPhysicalAddress *out, KProcessAddress address) const {
                 return this->page_table.GetPhysicalAddress(out, address);
             }
 
             bool Contains(KProcessAddress addr, size_t size) const { return this->page_table.Contains(addr, size); }
+
+            bool IsInAliasRegion(KProcessAddress addr, size_t size) const { return this->page_table.IsInAliasRegion(addr, size); }
+            bool IsInUnsafeAliasRegion(KProcessAddress addr, size_t size) const { return this->page_table.IsInUnsafeAliasRegion(addr, size); }
+
             bool CanContain(KProcessAddress addr, size_t size, KMemoryState state) const { return this->page_table.CanContain(addr, size, state); }
 
             KProcessAddress GetAddressSpaceStart()    const { return this->page_table.GetAddressSpaceStart(); }
@@ -171,8 +263,9 @@ namespace ams::kern::arch::arm64 {
 
             size_t GetNormalMemorySize() const { return this->page_table.GetNormalMemorySize(); }
 
+            u32 GetAllocateOption() const { return this->page_table.GetAllocateOption(); }
+
             KPhysicalAddress GetHeapPhysicalAddress(KVirtualAddress address) const {
-                /* TODO: Better way to convert address type? */
                 return this->page_table.GetHeapPhysicalAddress(address);
             }
 

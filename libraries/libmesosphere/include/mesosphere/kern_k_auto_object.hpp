@@ -127,6 +127,7 @@ namespace ams::kern {
                 u32 cur_ref_count = this->ref_count.load(std::memory_order_acquire);
                 do {
                     if (AMS_UNLIKELY(cur_ref_count == 0)) {
+                        MESOSPHERE_AUDIT(cur_ref_count != 0);
                         return false;
                     }
                     MESOSPHERE_ABORT_UNLESS(cur_ref_count < cur_ref_count + 1);
@@ -204,15 +205,20 @@ namespace ams::kern {
                 this->obj = nullptr;
             }
 
-            template<typename U>
+            template<typename U> requires (std::derived_from<T, U> || std::derived_from<U, T>)
             constexpr ALWAYS_INLINE KScopedAutoObject(KScopedAutoObject<U> &&rhs) {
-                if constexpr (std::same_as<T, U>) {
+                if constexpr (std::derived_from<U, T>) {
+                    /* Upcast. */
                     this->obj = rhs.obj;
                     rhs.obj = nullptr;
                 } else {
-                    T *derived = rhs.obj->template DynamicCast<T *>();
-                    if (derived == nullptr) {
-                        rhs.obj->Close();
+                    /* Downcast. */
+                    T *derived = nullptr;
+                    if (rhs.obj != nullptr) {
+                        derived = rhs.obj->template DynamicCast<T *>();
+                        if (derived == nullptr) {
+                            rhs.obj->Close();
+                        }
                     }
 
                     this->obj = derived;
@@ -220,16 +226,7 @@ namespace ams::kern {
                 }
             }
 
-            template<typename U>
-            constexpr ALWAYS_INLINE KScopedAutoObject &operator=(KScopedAutoObject<U> &&rhs) {
-                if constexpr (!std::same_as<T, U>) {
-                    T *derived = rhs.obj->template DynamicCast<T *>();
-                    if (derived == nullptr) {
-                        rhs.obj->Close();
-                    }
-                    rhs.obj = nullptr;
-                }
-
+            constexpr ALWAYS_INLINE KScopedAutoObject<T> &operator=(KScopedAutoObject<T> &&rhs) {
                 rhs.Swap(*this);
                 return *this;
             }
@@ -242,6 +239,8 @@ namespace ams::kern {
             }
 
             constexpr ALWAYS_INLINE T *GetPointerUnsafe() { return this->obj; }
+
+            constexpr ALWAYS_INLINE T *ReleasePointerUnsafe() { T *ret = this->obj; this->obj = nullptr; return ret; }
 
             constexpr ALWAYS_INLINE bool IsNull() const { return this->obj == nullptr; }
             constexpr ALWAYS_INLINE bool IsNotNull() const { return this->obj != nullptr; }

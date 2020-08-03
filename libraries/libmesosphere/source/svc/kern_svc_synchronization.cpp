@@ -27,6 +27,29 @@ namespace ams::kern::svc {
             return ResultSuccess();
         }
 
+        Result ResetSignal(ams::svc::Handle handle) {
+            /* Get the current handle table. */
+            auto &handle_table = GetCurrentProcess().GetHandleTable();
+
+            /* Try to reset as readable event. */
+            {
+                KScopedAutoObject readable_event = handle_table.GetObject<KReadableEvent>(handle);
+                if (readable_event.IsNotNull()) {
+                    return readable_event->Reset();
+                }
+            }
+
+            /* Try to reset as process. */
+            {
+                KScopedAutoObject process = handle_table.GetObject<KProcess>(handle);
+                if (process.IsNotNull()) {
+                    return process->Reset();
+                }
+            }
+
+            return svc::ResultInvalidHandle();
+        }
+
         Result WaitSynchronizationImpl(int32_t *out_index, KSynchronizationObject **objs, int32_t num_handles, int64_t timeout_ns) {
             /* Convert the timeout from nanoseconds to ticks. */
             s64 timeout;
@@ -79,6 +102,31 @@ namespace ams::kern::svc {
             return ResultSuccess();
         }
 
+        Result CancelSynchronization(ams::svc::Handle handle) {
+            /* Get the thread from its handle. */
+            KScopedAutoObject thread = GetCurrentProcess().GetHandleTable().GetObject<KThread>(handle);
+            R_UNLESS(thread.IsNotNull(), svc::ResultInvalidHandle());
+
+            /* Cancel the thread's wait. */
+            thread->WaitCancel();
+            return ResultSuccess();
+        }
+
+        void SynchronizePreemptionState() {
+            /* Lock the scheduler. */
+            KScopedSchedulerLock sl;
+
+            /* If the current thread is pinned, unpin it. */
+            KProcess *cur_process = GetCurrentProcessPointer();
+            if (cur_process->GetPinnedThread(GetCurrentCoreId()) == GetCurrentThreadPointer()) {
+                /* Clear the current thread's interrupt flag. */
+                GetCurrentThread().ClearInterruptFlag();
+
+                /* Unpin the current thread. */
+                KScheduler::UnpinCurrentThread(cur_process);
+            }
+        }
+
     }
 
     /* =============================    64 ABI    ============================= */
@@ -88,21 +136,19 @@ namespace ams::kern::svc {
     }
 
     Result ResetSignal64(ams::svc::Handle handle) {
-        MESOSPHERE_PANIC("Stubbed SvcResetSignal64 was called.");
+        return ResetSignal(handle);
     }
 
     Result WaitSynchronization64(int32_t *out_index, KUserPointer<const ams::svc::Handle *> handles, int32_t num_handles, int64_t timeout_ns) {
-        Result result = WaitSynchronization(out_index, handles, num_handles, timeout_ns);
-        MESOSPHERE_LOG("WaitSynchronization returned %08x\n", result.GetValue());
-        return result;
+        return WaitSynchronization(out_index, handles, num_handles, timeout_ns);
     }
 
     Result CancelSynchronization64(ams::svc::Handle handle) {
-        MESOSPHERE_PANIC("Stubbed SvcCancelSynchronization64 was called.");
+        return CancelSynchronization(handle);
     }
 
     void SynchronizePreemptionState64() {
-        MESOSPHERE_PANIC("Stubbed SvcSynchronizePreemptionState64 was called.");
+        return SynchronizePreemptionState();
     }
 
     /* ============================= 64From32 ABI ============================= */
@@ -112,7 +158,7 @@ namespace ams::kern::svc {
     }
 
     Result ResetSignal64From32(ams::svc::Handle handle) {
-        MESOSPHERE_PANIC("Stubbed SvcResetSignal64From32 was called.");
+        return ResetSignal(handle);
     }
 
     Result WaitSynchronization64From32(int32_t *out_index, KUserPointer<const ams::svc::Handle *> handles, int32_t num_handles, int64_t timeout_ns) {
@@ -120,11 +166,11 @@ namespace ams::kern::svc {
     }
 
     Result CancelSynchronization64From32(ams::svc::Handle handle) {
-        MESOSPHERE_PANIC("Stubbed SvcCancelSynchronization64From32 was called.");
+        return CancelSynchronization(handle);
     }
 
     void SynchronizePreemptionState64From32() {
-        MESOSPHERE_PANIC("Stubbed SvcSynchronizePreemptionState64From32 was called.");
+        return SynchronizePreemptionState();
     }
 
 }
