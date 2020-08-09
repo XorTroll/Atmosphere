@@ -2,7 +2,7 @@
 
 namespace ams::mitm::fspusb {
 
-    void Service::ListMountedDrives(const sf::OutArray<s32> &out_interface_ids, sf::Out<s32> out_count) {
+    Result FspUsbService::ListMountedDrives(const sf::OutArray<s32> &out_interface_ids, sf::Out<s32> out_count) {
         FSP_USB_LOG("%s: forcing a mounted drive list update.", __func__);
         impl::DoUpdateDrives();
 
@@ -17,9 +17,10 @@ namespace ams::mitm::fspusb {
         }
 
         out_count.SetValue(static_cast<s32>(drive_count));
+        return ResultSuccess();
     }
 
-    Result Service::GetDriveFileSystemType(s32 drive_interface_id, sf::Out<u8> out_fs_type) {
+    Result FspUsbService::GetDriveFileSystemType(s32 drive_interface_id, sf::Out<u8> out_fs_type) {
         FSP_USB_LOG("%s (interface ID %d): forcing a mounted drive list update.", __func__, drive_interface_id);
         impl::DoUpdateDrives();
         R_UNLESS(impl::IsDriveInterfaceIdValid(drive_interface_id), ResultInvalidDriveInterfaceId());
@@ -37,7 +38,7 @@ namespace ams::mitm::fspusb {
         return ResultSuccess();
     }
 
-    Result Service::GetDriveLabel(s32 drive_interface_id, sf::OutBuffer &out_label_str) {
+    Result FspUsbService::GetDriveLabel(s32 drive_interface_id, sf::OutBuffer &out_label_str) {
         FSP_USB_LOG("%s (interface ID %d): forcing a mounted drive list update.", __func__, drive_interface_id);
         impl::DoUpdateDrives();
         R_UNLESS(impl::IsDriveInterfaceIdValid(drive_interface_id), ResultInvalidDriveInterfaceId());
@@ -55,7 +56,7 @@ namespace ams::mitm::fspusb {
         return result::CreateFromFATFSError(ffrc);
     }
 
-    Result Service::SetDriveLabel(s32 drive_interface_id, sf::InBuffer &label_str) {
+    Result FspUsbService::SetDriveLabel(s32 drive_interface_id, sf::InBuffer &label_str) {
         FSP_USB_LOG("%s (interface ID %d): forcing a mounted drive list update.", __func__, drive_interface_id);
         impl::DoUpdateDrives();
         R_UNLESS(impl::IsDriveInterfaceIdValid(drive_interface_id), ResultInvalidDriveInterfaceId());
@@ -88,13 +89,18 @@ namespace ams::mitm::fspusb {
         return result::CreateFromFATFSError(ffrc);
     }
 
-    Result Service::OpenDriveFileSystem(s32 drive_interface_id, sf::Out<std::shared_ptr<IFileSystemInterface>> out_fs) {
+    template<typename... Arguments>
+    constexpr ALWAYS_INLINE auto MakeSharedFileSystem(Arguments &&... args) {
+        return sf::MakeShared<ams::fssrv::sf::IFileSystem, ams::fssrv::impl::FileSystemInterfaceAdapter>(std::forward<Arguments>(args)...);
+    }
+
+    Result FspUsbService::OpenDriveFileSystem(s32 drive_interface_id, sf::Out<std::shared_ptr<fssrv::sf::IFileSystem>> out_fs) {
         FSP_USB_LOG("%s (interface ID %d): forcing a mounted drive list update.", __func__, drive_interface_id);
         impl::DoUpdateDrives();
         R_UNLESS(impl::IsDriveInterfaceIdValid(drive_interface_id), ResultInvalidDriveInterfaceId());
 
         std::shared_ptr<fs::fsa::IFileSystem> drv_fs = std::make_shared<DriveFileSystem>(drive_interface_id);
-        out_fs.SetValue(std::make_shared<IFileSystemInterface>(std::move(drv_fs), false));
+        out_fs.SetValue(MakeSharedFileSystem(std::move(drv_fs), false));
         FSP_USB_LOG("%s (interface ID %d): IFileSystem object created.", __func__, drive_interface_id);
 
         return ResultSuccess();

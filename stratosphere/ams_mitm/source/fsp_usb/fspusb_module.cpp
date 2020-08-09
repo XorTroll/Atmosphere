@@ -49,7 +49,7 @@ namespace ams::mitm::fspusb {
             R_ABORT_UNLESS(impl::InitializeManager());
         });
 
-        R_ABORT_UNLESS(g_server_manager.RegisterServer<Service>(ServiceName, MaxSessions));
+        R_ABORT_UNLESS((g_server_manager.RegisterServer<impl::IFspUsbInterface, FspUsbService>(ServiceName, MaxSessions)));
 
         g_server_manager.LoopProcess();
 
