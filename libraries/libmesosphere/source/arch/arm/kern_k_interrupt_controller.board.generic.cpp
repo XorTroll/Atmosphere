@@ -13,11 +13,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#pragma once
-#include <mesosphere/kern_common.hpp>
+#include <mesosphere.hpp>
 
-namespace ams::kern {
-
-    constexpr inline size_t MainMemorySize = 4_GB;
-
-}
+/* Include the common implementation. */
+#include "../arm/kern_generic_interrupt_controller.inc"

@@ -179,12 +179,12 @@ namespace ams::kern::board::nintendo::nx {
 
         bool IsRegisterAccessibleToPrivileged(ams::svc::PhysicalAddress address) {
             /* Find the region for the address. */
-            KMemoryRegionTree::const_iterator it = KMemoryLayout::FindContainingRegion(KPhysicalAddress(address));
-            if (AMS_LIKELY(it != KMemoryLayout::GetPhysicalMemoryRegionTree().end())) {
-                if (AMS_LIKELY(it->IsDerivedFrom(KMemoryRegionAttr_NoUserMap | KMemoryRegionType_MemoryController))) {
+            const KMemoryRegion *region = KMemoryLayout::Find(KPhysicalAddress(address));
+            if (AMS_LIKELY(region != nullptr)) {
+                if (AMS_LIKELY(region->IsDerivedFrom(KMemoryRegionType_MemoryController))) {
                     /* Get the offset within the region. */
-                    const size_t offset = address - it->GetAddress();
-                    MESOSPHERE_ABORT_UNLESS(offset < it->GetSize());
+                    const size_t offset = address - region->GetAddress();
+                    MESOSPHERE_ABORT_UNLESS(offset < region->GetSize());
 
                     /* Check the whitelist. */
                     if (AMS_LIKELY(CheckRegisterAllowedTable(McKernelRegisterWhitelist, offset))) {
@@ -198,21 +198,21 @@ namespace ams::kern::board::nintendo::nx {
 
         bool IsRegisterAccessibleToUser(ams::svc::PhysicalAddress address) {
             /* Find the region for the address. */
-            KMemoryRegionTree::const_iterator it = KMemoryLayout::FindContainingRegion(KPhysicalAddress(address));
-            if (AMS_LIKELY(it != KMemoryLayout::GetPhysicalMemoryRegionTree().end())) {
+            const KMemoryRegion *region = KMemoryLayout::Find(KPhysicalAddress(address));
+            if (AMS_LIKELY(region != nullptr)) {
                 /* The PMC is always allowed. */
-                if (it->IsDerivedFrom(KMemoryRegionAttr_NoUserMap | KMemoryRegionType_PowerManagementController)) {
+                if (region->IsDerivedFrom(KMemoryRegionType_PowerManagementController)) {
                     return true;
                 }
 
                 /* Memory controller is allowed if the register is whitelisted. */
-                if (it->IsDerivedFrom(KMemoryRegionAttr_NoUserMap | KMemoryRegionType_MemoryController ) ||
-                    it->IsDerivedFrom(KMemoryRegionAttr_NoUserMap | KMemoryRegionType_MemoryController0) ||
-                    it->IsDerivedFrom(KMemoryRegionAttr_NoUserMap | KMemoryRegionType_MemoryController1))
+                if (region->IsDerivedFrom(KMemoryRegionType_MemoryController ) ||
+                    region->IsDerivedFrom(KMemoryRegionType_MemoryController0) ||
+                    region->IsDerivedFrom(KMemoryRegionType_MemoryController1))
                 {
                     /* Get the offset within the region. */
-                    const size_t offset = address - it->GetAddress();
-                    MESOSPHERE_ABORT_UNLESS(offset < it->GetSize());
+                    const size_t offset = address - region->GetAddress();
+                    MESOSPHERE_ABORT_UNLESS(offset < region->GetSize());
 
                     /* Check the whitelist. */
                     if (AMS_LIKELY(CheckRegisterAllowedTable(McUserRegisterWhitelist, offset))) {
@@ -338,44 +338,60 @@ namespace ams::kern::board::nintendo::nx {
     }
 
     size_t KSystemControl::Init::GetApplicationPoolSize() {
-        switch (GetMemoryArrangeForInit()) {
-            case smc::MemoryArrangement_4GB:
-            default:
-                return 3285_MB;
-            case smc::MemoryArrangement_4GBForAppletDev:
-                return 2048_MB;
-            case smc::MemoryArrangement_4GBForSystemDev:
-                return 3285_MB;
-            case smc::MemoryArrangement_6GB:
-                return 4916_MB;
-            case smc::MemoryArrangement_6GBForAppletDev:
-                return 3285_MB;
-            case smc::MemoryArrangement_8GB:
-                return 4916_MB;
-        }
+        /* Get the base pool size. */
+        const size_t base_pool_size = [] ALWAYS_INLINE_LAMBDA () -> size_t {
+            switch (GetMemoryArrangeForInit()) {
+                case smc::MemoryArrangement_4GB:
+                default:
+                    return 3285_MB;
+                case smc::MemoryArrangement_4GBForAppletDev:
+                    return 2048_MB;
+                case smc::MemoryArrangement_4GBForSystemDev:
+                    return 3285_MB;
+                case smc::MemoryArrangement_6GB:
+                    return 4916_MB;
+                case smc::MemoryArrangement_6GBForAppletDev:
+                    return 3285_MB;
+                case smc::MemoryArrangement_8GB:
+                    return 4916_MB;
+            }
+        }();
+
+        /* Return (possibly) adjusted size. */
+        return base_pool_size;
     }
 
     size_t KSystemControl::Init::GetAppletPoolSize() {
-        switch (GetMemoryArrangeForInit()) {
-            case smc::MemoryArrangement_4GB:
-            default:
-                return 507_MB;
-            case smc::MemoryArrangement_4GBForAppletDev:
-                return 1554_MB;
-            case smc::MemoryArrangement_4GBForSystemDev:
-                return 448_MB;
-            case smc::MemoryArrangement_6GB:
-                return 562_MB;
-            case smc::MemoryArrangement_6GBForAppletDev:
-                return 2193_MB;
-            case smc::MemoryArrangement_8GB:
-                return 2193_MB;
-        }
+        /* Get the base pool size. */
+        const size_t base_pool_size = [] ALWAYS_INLINE_LAMBDA () -> size_t {
+            switch (GetMemoryArrangeForInit()) {
+                case smc::MemoryArrangement_4GB:
+                default:
+                    return 507_MB;
+                case smc::MemoryArrangement_4GBForAppletDev:
+                    return 1554_MB;
+                case smc::MemoryArrangement_4GBForSystemDev:
+                    return 448_MB;
+                case smc::MemoryArrangement_6GB:
+                    return 562_MB;
+                case smc::MemoryArrangement_6GBForAppletDev:
+                    return 2193_MB;
+                case smc::MemoryArrangement_8GB:
+                    return 2193_MB;
+            }
+        }();
+
+        /* Return (possibly) adjusted size. */
+        constexpr size_t ExtraSystemMemoryForAtmosphere = 33_MB;
+        return base_pool_size - ExtraSystemMemoryForAtmosphere - KTraceBufferSize;
     }
 
     size_t KSystemControl::Init::GetMinimumNonSecureSystemPoolSize() {
-        /* TODO: Where does this constant actually come from? */
-        return 0x29C8000;
+        /* Verify that our minimum is at least as large as Nintendo's. */
+        constexpr size_t MinimumSize = ::ams::svc::RequiredNonSecureSystemMemorySize;
+        static_assert(MinimumSize >= 0x29C8000);
+
+        return MinimumSize;
     }
 
     void KSystemControl::Init::CpuOn(u64 core_id, uintptr_t entrypoint, uintptr_t arg) {
@@ -453,7 +469,7 @@ namespace ams::kern::board::nintendo::nx {
         KSleepManager::Initialize();
 
         /* Reserve secure applet memory. */
-        {
+        if (GetTargetFirmware() >= TargetFirmware_5_0_0) {
             MESOSPHERE_ABORT_UNLESS(g_secure_applet_memory_address == Null<KVirtualAddress>);
             MESOSPHERE_ABORT_UNLESS(Kernel::GetSystemResourceLimit().Reserve(ams::svc::LimitableResource_PhysicalMemoryMax, SecureAppletMemorySize));
 
@@ -461,10 +477,16 @@ namespace ams::kern::board::nintendo::nx {
             g_secure_applet_memory_address = Kernel::GetMemoryManager().AllocateContinuous(SecureAppletMemorySize / PageSize, 1, SecureAppletAllocateOption);
             MESOSPHERE_ABORT_UNLESS(g_secure_applet_memory_address != Null<KVirtualAddress>);
         }
+
+        /* Initialize KTrace. */
+        if constexpr (IsKTraceEnabled) {
+            const auto &ktrace = KMemoryLayout::GetKernelTraceBufferRegion();
+            KTrace::Initialize(ktrace.GetAddress(), ktrace.GetSize());
+        }
     }
 
-    u32 KSystemControl::GetInitialProcessBinaryPool() {
-        return KMemoryManager::Pool_Application;
+    u32 KSystemControl::GetCreateProcessMemoryPool() {
+        return KMemoryManager::Pool_Unsafe;
     }
 
     /* Privileged Access. */
@@ -517,7 +539,7 @@ namespace ams::kern::board::nintendo::nx {
         }
         u32 dummy;
         smc::init::ReadWriteRegister(std::addressof(dummy), 0x7000E400, 0x10, 0x10);
-        while (true) { /* ... */ }
+        AMS_INFINITE_LOOP();
     }
 
     /* User access. */
