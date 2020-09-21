@@ -532,13 +532,86 @@ namespace ams::kern::board::nintendo::nx {
         KSleepManager::SleepSystem();
     }
 
-    void KSystemControl::StopSystem() {
+    void KSystemControl::StopSystem(void *arg) {
+        if (arg != nullptr) {
+            /* Get the address of the legacy IRAM region. */
+            const KVirtualAddress iram_address = KMemoryLayout::GetDeviceVirtualAddress(KMemoryRegionType_LegacyLpsIram) + 64_KB;
+            constexpr size_t RebootPayloadSize = 0x2E000;
+
+            /* NOTE: Atmosphere extension; if we received an exception context from Panic(), */
+            /*       generate a fatal error report using it. */
+            const KExceptionContext *e_ctx = static_cast<const KExceptionContext *>(arg);
+            auto *f_ctx = GetPointer<::ams::impl::FatalErrorContext>(iram_address + RebootPayloadSize);
+
+            /* Clear the fatal context. */
+            std::memset(f_ctx, 0xCC, sizeof(*f_ctx));
+
+            /* Set metadata. */
+            f_ctx->magic      = ::ams::impl::FatalErrorContext::Magic;
+            f_ctx->error_desc = ::ams::impl::FatalErrorContext::KernelPanicDesc;
+            f_ctx->program_id = (static_cast<u64>(util::FourCC<'M', 'E', 'S', 'O'>::Code) << 0) | (static_cast<u64>(util::FourCC<'S', 'P', 'H', 'R'>::Code) << 32);
+
+            /* Set identifier. */
+            f_ctx->report_identifier = KHardwareTimer::GetTick();
+
+            /* Set module base. */
+            f_ctx->module_base = KMemoryLayout::GetKernelCodeRegionExtents().GetAddress();
+
+            /* Copy registers. */
+            for (size_t i = 0; i < util::size(e_ctx->x); ++i) {
+                f_ctx->gprs[i] = e_ctx->x[i];
+            }
+            f_ctx->sp = e_ctx->sp;
+
+            /* Dump stack trace. */
+            {
+                uintptr_t fp = e_ctx->x[29];
+                for (f_ctx->stack_trace_size = 0; f_ctx->stack_trace_size < ::ams::impl::FatalErrorContext::MaxStackTrace && fp != 0 && util::IsAligned(fp, 0x10) && cpu::GetPhysicalAddressWritable(nullptr, fp, true); ++(f_ctx->stack_trace_size)) {
+                    struct {
+                        uintptr_t fp;
+                        uintptr_t lr;
+                    } *stack_frame = reinterpret_cast<decltype(stack_frame)>(fp);
+
+                    f_ctx->stack_trace[f_ctx->stack_trace_size] = stack_frame->lr;
+                    fp = stack_frame->fp;
+                }
+            }
+
+            /* Dump stack. */
+            {
+                uintptr_t sp = e_ctx->sp;
+                for (f_ctx->stack_dump_size = 0; f_ctx->stack_dump_size < ::ams::impl::FatalErrorContext::MaxStackDumpSize && cpu::GetPhysicalAddressWritable(nullptr, sp + f_ctx->stack_dump_size, true); f_ctx->stack_dump_size += sizeof(u64)) {
+                    *reinterpret_cast<u64 *>(f_ctx->stack_dump + f_ctx->stack_dump_size) = *reinterpret_cast<u64 *>(sp + f_ctx->stack_dump_size);
+                }
+            }
+
+            /* Try to get a payload address. */
+            const KMemoryRegion *cached_region = nullptr;
+            u64 reboot_payload_paddr = 0;
+            if (smc::TryGetConfig(std::addressof(reboot_payload_paddr), 1, smc::ConfigItem::ExospherePayloadAddress) && KMemoryLayout::IsLinearMappedPhysicalAddress(cached_region, reboot_payload_paddr, RebootPayloadSize)) {
+                /* If we have a payload, reboot to it. */
+                const KVirtualAddress reboot_payload = KMemoryLayout::GetLinearVirtualAddress(KPhysicalAddress(reboot_payload_paddr));
+
+                /* Clear IRAM. */
+                std::memset(GetVoidPointer(iram_address), 0xCC, RebootPayloadSize);
+
+                /* Copy the payload to iram. */
+                for (size_t i = 0; i < RebootPayloadSize / sizeof(u32); ++i) {
+                    GetPointer<volatile u32>(iram_address)[i] = GetPointer<volatile u32>(reboot_payload)[i];
+                }
+
+                /* Reboot. */
+                smc::SetConfig(smc::ConfigItem::ExosphereNeedsReboot, smc::UserRebootType_ToPayload);
+            } else {
+                /* If we don't have a payload, reboot to rcm. */
+                smc::SetConfig(smc::ConfigItem::ExosphereNeedsReboot, smc::UserRebootType_ToRcm);
+            }
+        }
+
         if (g_call_smc_on_panic) {
-            /* Display a panic screen via secure monitor. */
+            /* If we should, instruct the secure monitor to display a panic screen. */
             smc::Panic(0xF00);
         }
-        u32 dummy;
-        smc::init::ReadWriteRegister(std::addressof(dummy), 0x7000E400, 0x10, 0x10);
         AMS_INFINITE_LOOP();
     }
 
