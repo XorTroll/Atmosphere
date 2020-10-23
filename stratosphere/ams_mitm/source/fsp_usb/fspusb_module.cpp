@@ -23,7 +23,7 @@ namespace ams::mitm::fspusb {
 
         constexpr sm::ServiceName ServiceName = sm::ServiceName::Encode("fsp-usb");
 
-        /* Same options as fsp-srv, since this is a service with similar behaviour */
+        /* Same options as fsp-srv, since this is a service with similar behaviour. */
 
         struct ServerOptions {
             static constexpr size_t PointerBufferSize = 0x800;
@@ -32,7 +32,7 @@ namespace ams::mitm::fspusb {
         };
 
         constexpr size_t MaxServers = 1;
-        constexpr size_t MaxSessions = 61;
+        constexpr size_t MaxSessions = 0x20;
         sf::hipc::ServerManager<MaxServers, ServerOptions, MaxSessions> g_server_manager;
 
     }
@@ -41,23 +41,27 @@ namespace ams::mitm::fspusb {
         /* Wait until initialization is complete. */
         mitm::WaitInitialized();
         
-        sm::DoWithSession([&]() {
-#ifdef FSP_USB_DEBUG
-            R_ABORT_UNLESS(fsdevMountSdmc());
-#endif
-            R_ABORT_UNLESS(timeInitialize());
+        /* Initialize USB. */
+        sm::DoWithSession([]() {
+            #ifdef FSP_USB_DEBUG
+                R_ABORT_UNLESS(fsdevMountSdmc());
+            #endif
+
             R_ABORT_UNLESS(impl::InitializeManager());
         });
+        ON_SCOPE_EXIT {
+            impl::FinalizeManager();
 
+            #ifdef FSP_USB_DEBUG
+                fsdevUnmountAll();
+            #endif
+        };
+
+        /* Register fsp-usb. */
         R_ABORT_UNLESS((g_server_manager.RegisterServer<impl::IFspUsbInterface, FspUsbService>(ServiceName, MaxSessions)));
 
+        /* Loop forever, servicing our services. */
         g_server_manager.LoopProcess();
-
-        impl::FinalizeManager();
-        timeExit();
-#ifdef FSP_USB_DEBUG
-        fsdevUnmountAll();
-#endif
     }
 
 }
